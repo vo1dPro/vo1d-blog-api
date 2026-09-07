@@ -1,0 +1,10 @@
+ALTER TABLE "skills" ADD COLUMN "iconMediaId" INTEGER, ADD COLUMN "darkIconMediaId" INTEGER;
+ALTER TABLE "social_links" ADD COLUMN "iconMediaId" INTEGER, ADD COLUMN "darkIconMediaId" INTEGER;
+CREATE INDEX "skills_iconMediaId_idx" ON "skills"("iconMediaId");
+CREATE INDEX "skills_darkIconMediaId_idx" ON "skills"("darkIconMediaId");
+CREATE INDEX "social_links_iconMediaId_idx" ON "social_links"("iconMediaId");
+CREATE INDEX "social_links_darkIconMediaId_idx" ON "social_links"("darkIconMediaId");
+ALTER TABLE "skills" ADD CONSTRAINT "skills_iconMediaId_fkey" FOREIGN KEY ("iconMediaId") REFERENCES "media_assets"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "skills" ADD CONSTRAINT "skills_darkIconMediaId_fkey" FOREIGN KEY ("darkIconMediaId") REFERENCES "media_assets"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "social_links" ADD CONSTRAINT "social_links_iconMediaId_fkey" FOREIGN KEY ("iconMediaId") REFERENCES "media_assets"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "social_links" ADD CONSTRAINT "social_links_darkIconMediaId_fkey" FOREIGN KEY ("darkIconMediaId") REFERENCES "media_assets"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

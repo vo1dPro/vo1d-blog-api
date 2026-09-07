@@ -1,0 +1,319 @@
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  runtime      = "nodejs"
+  moduleFormat = "esm"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum ArticleStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum MediaKind {
+  IMAGE
+  PHOTO_ORIGINAL
+  PHOTO_THUMBNAIL
+}
+
+model AdminUser {
+  id           Int            @id @default(autoincrement())
+  email        String         @unique
+  passwordHash String
+  isActive     Boolean        @default(true)
+  lastLoginAt  DateTime?      @db.Timestamptz(3)
+  createdAt    DateTime       @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime       @updatedAt @db.Timestamptz(3)
+  sessions     AdminSession[]
+
+  @@map("admin_users")
+}
+
+model AdminSession {
+  id          Int       @id @default(autoincrement())
+  adminUserId Int
+  tokenHash   String    @unique
+  expiresAt   DateTime  @db.Timestamptz(3)
+  lastUsedAt  DateTime  @db.Timestamptz(3)
+  userAgent   String?
+  ipHash      String?
+  createdAt   DateTime  @default(now()) @db.Timestamptz(3)
+  adminUser   AdminUser @relation(fields: [adminUserId], references: [id], onDelete: Cascade)
+
+  @@index([adminUserId])
+  @@index([expiresAt])
+  @@map("admin_sessions")
+}
+
+model LoginThrottle {
+  keyHash      String    @id
+  attemptCount Int       @default(0)
+  windowStart  DateTime  @db.Timestamptz(3)
+  blockedUntil DateTime? @db.Timestamptz(3)
+  updatedAt    DateTime  @updatedAt @db.Timestamptz(3)
+
+  @@index([updatedAt])
+  @@map("login_throttles")
+}
+
+model SiteProfile {
+  id              Int         @id @default(1)
+  displayName     String
+  role            String
+  heroTitlePrefix String
+  heroDescription String
+  learningNote    String
+  footerMessage   String
+  avatarMediaId   Int?
+  createdAt       DateTime    @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime    @updatedAt @db.Timestamptz(3)
+  avatarMedia     MediaAsset? @relation("SiteProfileAvatar", fields: [avatarMediaId], references: [id], onDelete: Restrict)
+
+  @@index([avatarMediaId])
+  @@map("site_profiles")
+}
+
+model MediaAsset {
+  id                Int           @id @default(autoincrement())
+  objectKey         String        @unique
+  mimeType          String
+  sizeBytes         Int
+  width             Int?
+  height            Int?
+  altText           String?
+  kind              MediaKind
+  createdAt         DateTime      @default(now()) @db.Timestamptz(3)
+  siteProfileAvatar SiteProfile[] @relation("SiteProfileAvatar")
+  articleCovers     Article[]     @relation("ArticleCover")
+  bookCovers        Book[]        @relation("BookCover")
+  gameCovers        Game[]        @relation("GameCover")
+  photoOriginals    Photo[]       @relation("PhotoOriginal")
+  photoThumbnails   Photo[]       @relation("PhotoThumbnail")
+  skillIcons        Skill[]       @relation("SkillIcon")
+  skillDarkIcons    Skill[]       @relation("SkillDarkIcon")
+  socialIcons       SocialLink[]  @relation("SocialIcon")
+  socialDarkIcons   SocialLink[]  @relation("SocialDarkIcon")
+
+  @@index([kind])
+  @@map("media_assets")
+}
+
+model Category {
+  id        Int       @id @default(autoincrement())
+  key       String    @unique
+  label     String
+  iconKey   String?
+  sortOrder Int       @default(0)
+  isVisible Boolean   @default(true)
+  createdAt DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime  @updatedAt @db.Timestamptz(3)
+  articles  Article[]
+
+  @@index([sortOrder])
+  @@index([isVisible, sortOrder])
+  @@map("categories")
+}
+
+model Tag {
+  id        Int          @id @default(autoincrement())
+  slug      String       @unique
+  name      String       @unique
+  createdAt DateTime     @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime     @updatedAt @db.Timestamptz(3)
+  articles  ArticleTag[]
+
+  @@map("tags")
+}
+
+model Article {
+  id                 Int           @id @default(autoincrement())
+  slug               String        @unique
+  title              String
+  summary            String
+  bodyMarkdown       String
+  categoryId         Int
+  coverMediaId       Int
+  status             ArticleStatus @default(DRAFT)
+  publishedAt        DateTime?     @db.Timestamptz(3)
+  readingTimeMinutes Int
+  seoTitle           String?
+  seoDescription     String?
+  createdAt          DateTime      @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime      @updatedAt @db.Timestamptz(3)
+  category           Category      @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  coverMedia         MediaAsset    @relation("ArticleCover", fields: [coverMediaId], references: [id], onDelete: Restrict)
+  tags               ArticleTag[]
+
+  @@index([status])
+  @@index([publishedAt(sort: Desc)])
+  @@index([categoryId])
+  @@index([coverMediaId])
+  @@index([status, publishedAt(sort: Desc)])
+  @@map("articles")
+}
+
+model ArticleTag {
+  articleId Int
+  tagId     Int
+  article   Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  tag       Tag     @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([articleId, tagId])
+  @@index([tagId])
+  @@map("article_tags")
+}
+
+model Book {
+  id           Int        @id @default(autoincrement())
+  title        String
+  author       String
+  coverMediaId Int
+  accent       String
+  sourceName   String?
+  sourceUrl    String?
+  readingOrder Int
+  lastReadAt   DateTime?  @db.Timestamptz(3)
+  startedAt    DateTime?  @db.Timestamptz(3)
+  finishedAt   DateTime?  @db.Timestamptz(3)
+  progress     Int        @default(0)
+  isVisible    Boolean    @default(true)
+  sortOrder    Int        @default(0)
+  createdAt    DateTime   @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime   @updatedAt @db.Timestamptz(3)
+  coverMedia   MediaAsset @relation("BookCover", fields: [coverMediaId], references: [id], onDelete: Restrict)
+
+  @@index([coverMediaId])
+  @@index([readingOrder])
+  @@index([sortOrder])
+  @@index([isVisible, sortOrder])
+  @@map("books")
+}
+
+model Game {
+  id            Int        @id @default(autoincrement())
+  title         String
+  platform      String?
+  coverMediaId  Int
+  rating        Decimal    @db.Decimal(3, 1)
+  playtimeHours Int
+  likeLevel     Int
+  comment       String?
+  isVisible     Boolean    @default(true)
+  sortOrder     Int        @default(0)
+  createdAt     DateTime   @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime   @updatedAt @db.Timestamptz(3)
+  coverMedia    MediaAsset @relation("GameCover", fields: [coverMediaId], references: [id], onDelete: Restrict)
+  steamAppId    Int?       @unique
+
+  @@index([coverMediaId])
+  @@index([sortOrder])
+  @@index([isVisible, sortOrder])
+  @@map("games")
+}
+
+model SteamGame {
+  id                      Int       @id @default(autoincrement())
+  steamId                 String
+  appId                   Int
+  name                    String
+  playtimeMinutes         Int
+  playtimeTwoWeeksMinutes Int?
+  lastPlayedAt            DateTime? @db.Timestamptz(3)
+  isOwned                 Boolean   @default(true)
+  syncedAt                DateTime  @db.Timestamptz(3)
+  createdAt               DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt               DateTime  @updatedAt @db.Timestamptz(3)
+
+  @@unique([steamId, appId])
+  @@index([steamId, isOwned, playtimeMinutes])
+  @@map("steam_games")
+}
+
+model SteamSyncState {
+  id             Int       @id @default(autoincrement())
+  steamId        String    @unique
+  lastAttemptAt  DateTime? @db.Timestamptz(3)
+  lastSuccessAt  DateTime? @db.Timestamptz(3)
+  nextSyncAt     DateTime  @default(now()) @db.Timestamptz(3)
+  leaseToken     String?
+  leaseUntil     DateTime? @db.Timestamptz(3)
+  lastErrorCode  String?
+  failureCount   Int       @default(0)
+  libraryVisible Boolean   @default(false)
+  gameCount      Int       @default(0)
+  createdAt      DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime  @updatedAt @db.Timestamptz(3)
+
+  @@map("steam_sync_states")
+}
+
+model Photo {
+  id               Int        @id @default(autoincrement())
+  originalMediaId  Int
+  thumbnailMediaId Int
+  alt              String
+  title            String
+  description      String
+  capturedAt       DateTime?  @db.Timestamptz(3)
+  isVisible        Boolean    @default(true)
+  sortOrder        Int        @default(0)
+  createdAt        DateTime   @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime   @updatedAt @db.Timestamptz(3)
+  originalMedia    MediaAsset @relation("PhotoOriginal", fields: [originalMediaId], references: [id], onDelete: Restrict)
+  thumbnailMedia   MediaAsset @relation("PhotoThumbnail", fields: [thumbnailMediaId], references: [id], onDelete: Restrict)
+
+  @@index([originalMediaId])
+  @@index([thumbnailMediaId])
+  @@index([sortOrder])
+  @@index([isVisible, sortOrder])
+  @@map("photos")
+}
+
+model Skill {
+  id        Int      @id @default(autoincrement())
+  name      String
+  iconKey   String
+  sortOrder Int      @default(0)
+  isVisible Boolean  @default(true)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  iconMediaId     Int?
+  darkIconMediaId Int?
+  iconMedia       MediaAsset? @relation("SkillIcon", fields: [iconMediaId], references: [id], onDelete: Restrict)
+  darkIconMedia   MediaAsset? @relation("SkillDarkIcon", fields: [darkIconMediaId], references: [id], onDelete: Restrict)
+
+  @@index([iconMediaId])
+  @@index([darkIconMediaId])
+  @@index([sortOrder])
+  @@index([isVisible, sortOrder])
+  @@map("skills")
+}
+
+model SocialLink {
+  id        Int      @id @default(autoincrement())
+  name      String
+  platform  String
+  url       String
+  iconKey   String
+  sortOrder Int      @default(0)
+  isVisible Boolean  @default(true)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  iconMediaId     Int?
+  darkIconMediaId Int?
+  iconMedia       MediaAsset? @relation("SocialIcon", fields: [iconMediaId], references: [id], onDelete: Restrict)
+  darkIconMedia   MediaAsset? @relation("SocialDarkIcon", fields: [darkIconMediaId], references: [id], onDelete: Restrict)
+
+  @@index([iconMediaId])
+  @@index([darkIconMediaId])
+  @@index([sortOrder])
+  @@index([isVisible, sortOrder])
+  @@map("social_links")
+}

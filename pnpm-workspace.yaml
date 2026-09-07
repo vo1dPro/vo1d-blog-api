@@ -1,0 +1,11 @@
+onlyBuiltDependencies:
+  - '@prisma/engines'
+  - '@swc/core'
+  - argon2
+  - esbuild
+  - prisma
+ignoredBuiltDependencies:
+  - '@scarf/scarf'
+overrides:
+  '@prisma/config>deepmerge-ts': 8.0.0
+  'prisma>mysql2': 3.23.1
