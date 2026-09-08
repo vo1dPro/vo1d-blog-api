@@ -50,7 +50,10 @@ export class CreateGameDto {
   @Max(10)
   rating!: number;
 
-  @ApiProperty({ minimum: 0 })
+  @ApiProperty({
+    minimum: 0,
+    description: 'Custom hours: positive values override Steam; 0 uses Steam hours.',
+  })
   @IsInt()
   @Max(2_147_483_647)
   @Min(0)

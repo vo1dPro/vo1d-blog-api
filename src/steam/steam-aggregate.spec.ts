@@ -88,4 +88,27 @@ describe('multi-account Steam aggregation', () => {
     expect(() => parseSteamAccounts('secret invalid text')).toThrow('Invalid STEAM_ACCOUNTS');
     expect(parseSteamAccounts(JSON.stringify([account]))).toEqual([account]);
   });
+  it.each(['PRIVATE_LIBRARY', 'UNAUTHORIZED'])(
+    'keeps linked game hours on %s without inventing a first snapshot',
+    (code) => {
+      const states = accounts.map((account) => ({
+        ...account,
+        libraryVisible: false,
+        lastErrorCode: code,
+        lastSuccessAt: account.steamId === '3' ? null : account.lastSuccessAt,
+      }));
+      const rows = [game('1', 31), game('2', 31), game('3', 999), game('4', 999)];
+      const total = aggregateSteamGames(rows, states, 60000, now.getTime(), true).get(1172470);
+      expect(total).toMatchObject({
+        playtimeMinutes: 62,
+        stale: true,
+        incomplete: true,
+        playtimeTwoWeeksMinutes: null,
+      });
+      expect(Math.floor((total?.playtimeMinutes ?? 0) / 60)).toBe(1);
+      expect(total?.accountBreakdown).toHaveLength(2);
+      // An inaccessible library still cannot be used to create new Steam links.
+      expect(aggregateSteamGames(rows, states, 60000, now.getTime()).size).toBe(0);
+    },
+  );
 });

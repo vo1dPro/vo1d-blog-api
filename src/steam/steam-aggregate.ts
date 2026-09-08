@@ -7,6 +7,7 @@ export function aggregateSteamGames(
   accounts: readonly SteamAccountStatusDto[],
   intervalMs: number,
   now = Date.now(),
+  preserveFailedSnapshots = false,
 ): Map<number, SteamGameDto> {
   const result = new Map<number, SteamGameDto>();
   const seen = new Set<string>();
@@ -14,7 +15,13 @@ export function aggregateSteamGames(
   for (const row of rows) {
     const account = accounts.find((item) => item.steamId === row.steamId);
     const key = `${row.steamId}:${row.appId}`;
-    if (!account?.libraryVisible || !row.isOwned || seen.has(key)) continue;
+    const usable =
+      account &&
+      (account.libraryVisible ||
+        (preserveFailedSnapshots &&
+          account.lastSuccessAt !== null &&
+          account.lastErrorCode !== null));
+    if (!usable || !row.isOwned || seen.has(key)) continue;
     seen.add(key);
     const stale = Boolean(account.lastErrorCode) || now - row.syncedAt.getTime() >= intervalMs;
     const detail = { accountName: account.name, playtimeMinutes: row.playtimeMinutes, stale };

@@ -286,20 +286,19 @@ describe('REST API with real PostgreSQL and S3-compatible storage', () => {
       intervalMs: 60000,
       timeoutMs: 1000,
     });
-    const fetcher = vi
-      .spyOn(app.get(SteamClient), 'getLibrary')
-      .mockImplementation((account) => {
-        if (account?.steamId === accounts[2]?.steamId) return Promise.reject(new SteamUpstreamError('NETWORK'));
-        return Promise.resolve([
-          {
-            appId: 730,
-            name: 'Visible Game',
-            playtimeMinutes: account?.steamId === accounts[0]?.steamId ? 72000 : 12000,
-            playtimeTwoWeeksMinutes: 0,
-            lastPlayedAt: null,
-          },
-        ]);
-      });
+    const fetcher = vi.spyOn(app.get(SteamClient), 'getLibrary').mockImplementation((account) => {
+      if (account?.steamId === accounts[2]?.steamId)
+        return Promise.reject(new SteamUpstreamError('NETWORK'));
+      return Promise.resolve([
+        {
+          appId: 730,
+          name: 'Visible Game',
+          playtimeMinutes: account?.steamId === accounts[0]?.steamId ? 72000 : 12000,
+          playtimeTwoWeeksMinutes: 0,
+          lastPlayedAt: null,
+        },
+      ]);
+    });
     const initial = await prisma.game.findUniqueOrThrow({ where: { id: gameId } });
     await prisma.game.update({ where: { id: gameId }, data: { title: 'Visible Game' } });
     const sync = await post('admin/steam/sync', {}).set('Cookie', cookie).expect(200);
@@ -446,6 +445,68 @@ describe('REST API with real PostgreSQL and S3-compatible storage', () => {
     expect(result.body).toMatchObject({ steam: null, playtimeHours: initial.playtimeHours });
   });
 
+  it.each([1, 8])(
+    'uses custom %i hours instead of Steam and restores Steam when reset to zero',
+    async (customHours) => {
+      const fetcher = enableMockSteam();
+      const steam = app.get(SteamService);
+      await steam.sync();
+      await patch(`admin/games/${gameId}`, { steamAppId: 730, playtimeHours: customHours })
+        .set('Cookie', cookie)
+        .expect(200);
+      const edited = await get(`admin/games/${gameId}`).set('Cookie', cookie).expect(200);
+      expect(edited.body).toMatchObject({
+        playtimeHours: customHours,
+        manualPlaytimeHours: customHours,
+        steam: { playtimeMinutes: 125 },
+      });
+      const publicPage = pageSchema.parse((await get('games').expect(200)).body);
+      expect(publicPage.items.find((game) => game.id === gameId)).toMatchObject({
+        playtimeHours: customHours,
+      });
+      // A fresh sync must update only the Steam snapshot, not replace or add to the override.
+      fetcher.mockResolvedValue([
+        {
+          appId: 730,
+          name: 'Visible Game',
+          playtimeMinutes: 305,
+          playtimeTwoWeeksMinutes: 0,
+          lastPlayedAt: null,
+        },
+      ]);
+      await prisma.steamSyncState.updateMany({ data: { nextSyncAt: new Date(0) } });
+      await steam.sync();
+      expect(
+        (await get(`admin/games/${gameId}`).set('Cookie', cookie).expect(200)).body,
+      ).toMatchObject({
+        playtimeHours: customHours,
+        manualPlaytimeHours: customHours,
+        steam: { playtimeMinutes: 305 },
+      });
+      expect(
+        (
+          await patch(`admin/games/${gameId}`, { playtimeHours: 0 })
+            .set('Cookie', cookie)
+            .expect(200)
+        ).body,
+      ).toMatchObject({ playtimeHours: 5, manualPlaytimeHours: 0 });
+      expect(
+        (
+          await patch(`admin/games/${gameId}`, { steamAppId: null, playtimeHours: customHours })
+            .set('Cookie', cookie)
+            .expect(200)
+        ).body,
+      ).toMatchObject({ playtimeHours: customHours, steam: null });
+      expect(
+        (
+          await patch(`admin/games/${gameId}`, { playtimeHours: 0 })
+            .set('Cookie', cookie)
+            .expect(200)
+        ).body,
+      ).toMatchObject({ playtimeHours: 0, steam: null });
+    },
+  );
+
   it('shares the sync lease across concurrent triggers and retains cached data on failure', async () => {
     const fetcher = enableMockSteam();
     const service = app.get(SteamService);
@@ -463,19 +524,40 @@ describe('REST API with real PostgreSQL and S3-compatible storage', () => {
     expect(new Date(status.nextSyncAt ?? '').getTime()).toBeGreaterThan(Date.now());
   });
 
-  it('hides cached Steam data after private-library response without erasing stored games', async () => {
-    const fetcher = enableMockSteam();
-    await app.get(SteamService).sync();
-    await prisma.game.update({ where: { id: gameId }, data: { steamAppId: 730 } });
-    await prisma.steamSyncState.updateMany({ data: { nextSyncAt: new Date(0) } });
-    fetcher.mockRejectedValue(new SteamUpstreamError('PRIVATE_LIBRARY'));
-    await expect(app.get(SteamService).sync()).rejects.toThrow('PRIVATE_LIBRARY');
-    expect(await prisma.steamGame.count()).toBe(1);
-    const result = await get(`admin/games/${gameId}`).set('Cookie', cookie).expect(200);
-    expect(result.body).toMatchObject({ steam: null });
-    const library = await get('admin/steam/library').set('Cookie', cookie).expect(200);
-    expect(library.body).toMatchObject({ items: [], total: 0 });
-  });
+  it.each(['PRIVATE_LIBRARY', 'UNAUTHORIZED'] as const)(
+    'retains linked game hours after %s while keeping new links restricted',
+    async (code) => {
+      const fetcher = enableMockSteam();
+      await app.get(SteamService).sync();
+      await prisma.game.update({ where: { id: gameId }, data: { steamAppId: 730 } });
+      await prisma.steamSyncState.updateMany({ data: { nextSyncAt: new Date(0) } });
+      fetcher.mockRejectedValue(new SteamUpstreamError(code));
+      await expect(app.get(SteamService).sync()).rejects.toThrow(code);
+      expect(await prisma.steamGame.count()).toBe(1);
+      const result = await get(`admin/games/${gameId}`).set('Cookie', cookie).expect(200);
+      expect(result.body).toMatchObject({
+        playtimeHours: 2,
+        steam: { playtimeMinutes: 125, stale: true, incomplete: true },
+      });
+      const published = await get('games?pageSize=50').expect(200);
+      const publicGames = z
+        .object({
+          items: z.array(
+            z.object({ id: z.number(), playtimeHours: z.number(), steam: z.unknown() }),
+          ),
+        })
+        .parse(published.body);
+      expect(publicGames.items.find((game) => game.id === gameId)).toMatchObject({
+        playtimeHours: 2,
+        steam: { playtimeMinutes: 125, stale: true, incomplete: true },
+      });
+      await expect(app.get(SteamService).assertApp(730)).rejects.toThrow(
+        'current visible synced library',
+      );
+      const library = await get('admin/steam/library').set('Cookie', cookie).expect(200);
+      expect(library.body).toMatchObject({ items: [], total: 0 });
+    },
+  );
 
   it('links unique exact names, retains links on repeated calls, and never guesses translations', async () => {
     enableMockSteam();

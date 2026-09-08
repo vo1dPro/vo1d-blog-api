@@ -34,7 +34,10 @@ export class GameMediaResponseDto {
 export class GameResponseDto {
   @ApiProperty({ type: Number, nullable: true }) steamAppId!: number | null;
   @ApiProperty({ type: SteamGameDto, nullable: true }) steam!: SteamGameDto | null;
-  @ApiProperty({ description: 'Stored manual hours, preserved when Steam is linked' })
+  @ApiProperty({
+    description:
+      'Custom hours: positive values override Steam; 0 uses Steam. Legacy field name retained for compatibility.',
+  })
   manualPlaytimeHours!: number;
   @ApiProperty()
   id!: number;
@@ -54,7 +57,11 @@ export class GameResponseDto {
   @ApiProperty({ minimum: 0, maximum: 10 })
   rating!: number;
 
-  @ApiProperty({ minimum: 0 })
+  @ApiProperty({
+    minimum: 0,
+    description:
+      'Effective display hours: custom hours when positive, otherwise aggregated Steam minutes rounded down to hours, or 0 when unavailable. Never add custom and Steam hours.',
+  })
   playtimeHours!: number;
 
   @ApiProperty({ minimum: 0, maximum: 5 })

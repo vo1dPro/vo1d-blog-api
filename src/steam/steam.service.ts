@@ -223,14 +223,22 @@ export class SteamService implements OnApplicationBootstrap, BeforeApplicationSh
   }
 
   async forAppIds(ids: number[]): Promise<Map<number, SteamGameDto>> {
-    return ids.length ? this.aggregate(ids) : new Map();
+    // Display already-linked games from their last successful snapshot on upstream failure.
+    return ids.length ? this.aggregate(ids, true) : new Map();
   }
 
-  private async aggregate(ids?: number[]): Promise<Map<number, SteamGameDto>> {
+  private async aggregate(
+    ids?: number[],
+    preserveFailedSnapshots = false,
+  ): Promise<Map<number, SteamGameDto>> {
     const settings = this.config.steam;
     if (!settings.enabled) return new Map();
     const status = await this.status();
-    const visible = status.accounts.filter((a) => a.libraryVisible);
+    const visible = status.accounts.filter(
+      (a) =>
+        a.libraryVisible ||
+        (preserveFailedSnapshots && a.lastSuccessAt !== null && a.lastErrorCode !== null),
+    );
     const rows = await this.prisma.steamGame.findMany({
       where: {
         steamId: { in: visible.map((a) => a.steamId) },
@@ -239,11 +247,17 @@ export class SteamService implements OnApplicationBootstrap, BeforeApplicationSh
       },
       orderBy: [{ steamId: 'asc' }, { appId: 'asc' }],
     });
-    return aggregateSteamGames(rows, status.accounts, settings.intervalMs);
+    return aggregateSteamGames(
+      rows,
+      status.accounts,
+      settings.intervalMs,
+      Date.now(),
+      preserveFailedSnapshots,
+    );
   }
 
   async assertApp(appId: number): Promise<void> {
-    const rows = await this.forAppIds([appId]);
+    const rows = await this.aggregate([appId]);
     if (!rows.has(appId))
       throw new ServiceUnavailableException(
         'Steam app is not in the current visible synced library',

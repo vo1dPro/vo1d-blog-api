@@ -211,7 +211,12 @@ export class GamesService {
       coverMediaId: game.coverMediaId,
       cover: this.mapMedia(game.coverMedia),
       rating: Number(game.rating),
-      playtimeHours: steam === null ? game.playtimeHours : Math.floor(steam.playtimeMinutes / 60),
+      playtimeHours:
+        game.playtimeHours > 0
+          ? game.playtimeHours
+          : steam === null
+            ? 0
+            : Math.floor(steam.playtimeMinutes / 60),
       likeLevel: game.likeLevel,
       comment: game.comment,
       isVisible: game.isVisible,

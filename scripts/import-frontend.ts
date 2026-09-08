@@ -428,7 +428,7 @@ export function parseImportArguments(args: readonly string[]): { source: string;
   const source = argumentsOnly[sourceIndex + 1];
   if (sourceIndex < 0 || source === undefined || source.startsWith('--')) {
     throw new Error(
-      'Usage: pnpm import:frontend -- --source "D:\\Code_Project\\vo1d-blog" [--check]',
+      'Usage: pnpm import:frontend -- --source "<extracted-static-source>" [--check]',
     );
   }
   const remaining = argumentsOnly.filter(

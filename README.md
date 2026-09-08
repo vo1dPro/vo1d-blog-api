@@ -26,25 +26,28 @@ Steam 多账号自动同步已接入 games，同一 App ID 的时长按分钟合
 
 ## 当前三项目日常启动
 
+当前目录位于 D:\Code_Project\blog。本次恢复与验收见 [当前联动记录](../vo1d-blog-admin/docs/current-integration.md)。
+
 上传仓库与正式上线见 [发布准备说明](../vo1d-blog-admin/docs/release-guide.md)。请单独迁移数据库和媒体数据，不要把源码仓库当成完整的网站备份。
 
-本机 API 使用 3100。已有数据库、媒体和管理员时，在本目录运行 `docker compose --profile app up -d`，随后分别在后台和博客目录运行 `pnpm dev`、`pnpm dev --host localhost --port 5173 --strictPort`。全部使用 Node.js 24，同时核对 `node --version` 与 `pnpm exec node --version`。完整职责、启动顺序与验收见 [联动说明](../vo1d-blog-admin/docs/full-integration.md)。
+本机 API 使用 3100。已有数据库、媒体和管理员时，在本目录运行 `docker compose --profile app up -d`，随后分别在后台和博客目录运行 `pnpm dev`、`pnpm dev --host localhost --port 5173 --strictPort`。全部使用 Node.js 24，同时核对 `node --version` 与 `pnpm exec node --version`。完整职责、启动顺序与验收见 [联动说明](../vo1d-blog-admin/docs/current-integration.md)。
 
 ## 首次初始化（新环境，Windows PowerShell）
 
-以下导入和管理员创建仅用于新环境；本机日常启动不要重跑。首次生成环境默认端口是 3000，本机三项目约定为 3100。
+以下导入和管理员创建仅用于新环境；本机日常启动不要重跑。首次配置示例及生成脚本默认端口为 3100；容器内部仍为 3000。
 
-在 `D:\Code_Project\vo1d-blog-api` 执行，先确保 `node --version` 是 24.20.0，Docker Desktop Linux 引擎已启动：
+在 `D:\Code_Project\blog\vo1d-blog-api` 执行，先确保 `node --version` 是 24.20.0，Docker Desktop Linux 引擎已启动：
 
 ```powershell
 corepack enable
 corepack prepare pnpm@10.23.0 --activate
 pnpm install --frozen-lockfile
 pnpm setup:local
+# 若需要迁移旧数据，先将 static-data-before.zip 解压到下方 source 目录
 docker compose up -d postgres minio minio-init
 pnpm prisma:migrate:deploy
-pnpm import:frontend -- --source "D:\Code_Project\vo1d-blog"
-pnpm import:icons -- --source "D:\Code_Project\vo1d-blog"
+pnpm import:frontend -- --source "D:\Code_Project\blog\.integration-work\static-import-source"
+pnpm import:icons -- --source "D:\Code_Project\blog\.integration-work\static-import-source"
 pnpm admin:create
 pnpm build
 pnpm start
@@ -56,25 +59,27 @@ pnpm start
 
 地址：
 
-- API：[健康检查](http://localhost:3000/health)，[文章列表](http://localhost:3000/articles)。
-- Swagger：[交互文档](http://localhost:3000/docs)，[OpenAPI JSON](http://localhost:3000/docs-json)。
+- API：[健康检查](http://localhost:3100/health)，[文章列表](http://localhost:3100/articles)。
+- Swagger：[交互文档](http://localhost:3100/docs)，[OpenAPI JSON](http://localhost:3100/docs-json)。
 - MinIO 控制台：[本地控制台](http://localhost:9001)，凭据来自本地 `.env` 的 `MINIO_ROOT_USER / MINIO_ROOT_PASSWORD`。
 - 媒体：[本地 bucket](http://localhost:9000/vo1d-media) 下的对象 URL；不允许匿名写入。
 - PostgreSQL：仅绑定 loopback 的 5433 端口。数据库 `vo1d_blog` 与隔离测试库 `vo1d_blog_test` 各自独立。
 
-开发热重载用 `pnpm start:dev`。完整容器应用用 `docker compose --profile app up -d --build api`；不要同时占用 3000 端口运行本机服务。数据库迁移需要在应用发布前完成。Compose 的 `api` 服务用于本地集成，`.env` 的 `NODE_ENV=development` 让 HTTP 本地 Cookie 可用；生产须设 `NODE_ENV=production`。
+开发热重载用 `pnpm start:dev`。完整容器应用用 `docker compose --profile app up -d --build api`；不要同时占用 3100 端口运行本机服务。数据库迁移需要在应用发布前完成。Compose 的 `api` 服务用于本地集成，`.env` 的 `NODE_ENV=development` 让 HTTP 本地 Cookie 可用；生产须设 `NODE_ENV=production`。
 
-若 3000 已被其他项目占用，可在当前 PowerShell 设置 `$env:PORT='3100'` 再启动 Compose，容器内部端口仍固定 3000。此时访问 `http://localhost:3100/docs`，运行冒烟验证前设置 `$env:SMOKE_API_BASE_URL='http://localhost:3100/'`；Swagger 写操作需要把 `http://localhost:3100` 加入 `FRONTEND_ORIGINS`。本机服务则直接读取 `PORT` 监听对应端口。
+本机 `.env` 的 `PORT=3100` 与两个前端保持一致，容器内部端口仍固定 3000。访问 `http://localhost:3100/docs`，运行冒烟验证前设置 `$env:SMOKE_API_BASE_URL='http://localhost:3100/'`；Swagger 写操作需要把 `http://localhost:3100` 加入 `FRONTEND_ORIGINS`。本机服务则直接读取 `PORT` 监听对应端口。
 
 `docker compose stop` 保留数据库与媒体卷；不要运行 `down -v`，除非明确打算删除全部本地数据。生产备份必须同时覆盖 PostgreSQL 与对象存储。
 
 ## 数据导入
 
+2026-09-08：当前博客已移除静态业务源。下方原始数量仅作历史说明，--source 必须改为桌面归档解压目录；迁移测试用 FRONTEND_SOURCE_PATH 指定归档源。现有内容不要重新完整导入。
+
 ```powershell
 # 只验证源数据、数量和路径，无外部写入
-pnpm import:frontend -- --source "D:\Code_Project\vo1d-blog" --check
+pnpm import:frontend -- --source "D:\Code_Project\blog\.integration-work\static-import-source" --check
 # 执行可重复导入
-pnpm import:frontend -- --source "D:\Code_Project\vo1d-blog"
+pnpm import:frontend -- --source "D:\Code_Project\blog\.integration-work\static-import-source"
 ```
 
 脚本使用 TypeScript AST（Abstract Syntax Tree，抽象语法树）读取实际数组和独立的 src/data/site-profile.ts 迁移文案（兼容旧组件提取），不执行前端代码。先验证所有路径并解码所有图片，遇到缺失/损坏文件会列出清单并停止。明确处理以下文件名映射：
@@ -90,7 +95,7 @@ pnpm import:frontend -- --source "D:\Code_Project\vo1d-blog"
 
 文章、书籍、游戏、照片保留原整数 ID；分类、技能和社交链接按源数组位置分配稳定 ID。导入结束修正自增序列。文章封面固定按 `src/lib/blog.ts` 的原始 thumbnails 顺序绑定 ID 1～6；忽略存在索引错位的运行时封面选择函数。`content` 段落转换为 Markdown，`<code>` 内容解码并转换为行内代码。
 
-预期数量：文章 6、分类 6、标签 11、书籍 3、游戏 47、照片 10、技能 24、社交链接 3。媒体 76 = 博客封面 6 + 书封 3 + 游戏封面 47 + 照片展示图 10 + 原有缩略图 10。`all` 保留为兼容聚合分类，无文章引用；`category=all` 表示全部文章。该基础导入不包含图标。技能与社交图标使用独立的 `pnpm import:icons -- --source "D:\Code_Project\vo1d-blog"` 补充迁移，增加 34 个媒体对象（完整基线 110）。页脚手势与两个 3D 模型仍保留前端。
+预期数量：文章 6、分类 6、标签 11、书籍 3、游戏 47、照片 10、技能 24、社交链接 3。媒体 76 = 博客封面 6 + 书封 3 + 游戏封面 47 + 照片展示图 10 + 原有缩略图 10。`all` 保留为兼容聚合分类，无文章引用；`category=all` 表示全部文章。该基础导入不包含图标。技能与社交图标使用独立的 `pnpm import:icons -- --source "D:\Code_Project\blog\.integration-work\static-import-source"` 补充迁移，增加 34 个媒体对象（完整基线 110）。页脚手势与两个 3D 模型仍保留前端。
 
 源游戏的 0 评分/时长原样保存，未出现的 platform 为 null；只转换约定占位值，不猜测真实游戏信息。`sourceName=xx`、`sourceUrl=#`、评论“暂无评价”转为 null。`likeLevel` 保持 0～5。
 
@@ -127,9 +132,9 @@ pnpm build
 端到端测试必须先启动 Compose PostgreSQL/MinIO，并设置 `TEST_DATABASE_URL`。测试明确拒绝没有 `test` 名称分段的数据库、拒绝 production 模式、绝不回退至开发 `DATABASE_URL`；只清理隔离测试库及其媒体。测试覆盖认证、限流、发布隔离、过滤分页、冲突、真实 CHECK 约束、媒体重编码/引用删除、安全正文和 Swagger。导入集成测试读取 `FRONTEND_SOURCE_PATH`，未设置时读取相邻的 `../vo1d-blog`；持续集成须提供这份只读导入源。
 
 ```powershell
-curl.exe -i http://localhost:3000/health
-curl.exe -i "http://localhost:3000/articles?page=1&pageSize=6"
-curl.exe -i http://localhost:3000/admin/articles
+curl.exe -i http://localhost:3100/health
+curl.exe -i "http://localhost:3100/articles?page=1&pageSize=6"
+curl.exe -i http://localhost:3100/admin/articles
 ```
 
 第三条未登录应返回 401。验证登录时从交互终端安全输入凭据，通过允许的 Origin 与 Cookie 容器请求，不把密码写入仓库或命令历史。`pnpm verify:smoke` 使用随机临时管理员通过真实 HTTP（Hypertext Transfer Protocol，超文本传输协议）验证登录/退出/公共端点，结束删除该临时用户并撤销会话，不输出密码。
