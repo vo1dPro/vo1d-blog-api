@@ -33,3 +33,11 @@ playwright/.auth
 .auth
 docs/screenshots
 docs/*verification.json
+.integration-work
+blob-report
+*.rar
+*.zip
+*.7z
+*.tar
+*.tar.gz
+*.tgz

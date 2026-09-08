@@ -26,7 +26,7 @@ Steam 多账号自动同步已接入 games，同一 App ID 的时长按分钟合
 
 ## 当前三项目日常启动
 
-当前目录位于 D:\Code_Project\blog。本次恢复与验收见 [当前联动记录](../vo1d-blog-admin/docs/current-integration.md)。
+当前目录位于 工作区根目录。本次恢复与验收见 [当前联动记录](../vo1d-blog-admin/docs/current-integration.md)。
 
 上传仓库与正式上线见 [发布准备说明](../vo1d-blog-admin/docs/release-guide.md)。请单独迁移数据库和媒体数据，不要把源码仓库当成完整的网站备份。
 
@@ -36,7 +36,7 @@ Steam 多账号自动同步已接入 games，同一 App ID 的时长按分钟合
 
 以下导入和管理员创建仅用于新环境；本机日常启动不要重跑。首次配置示例及生成脚本默认端口为 3100；容器内部仍为 3000。
 
-在 `D:\Code_Project\blog\vo1d-blog-api` 执行，先确保 `node --version` 是 24.20.0，Docker Desktop Linux 引擎已启动：
+在 `vo1d-blog-api` 执行，先确保 `node --version` 是 24.20.0，Docker Desktop Linux 引擎已启动：
 
 ```powershell
 corepack enable
@@ -46,8 +46,8 @@ pnpm setup:local
 # 若需要迁移旧数据，先将 static-data-before.zip 解压到下方 source 目录
 docker compose up -d postgres minio minio-init
 pnpm prisma:migrate:deploy
-pnpm import:frontend -- --source "D:\Code_Project\blog\.integration-work\static-import-source"
-pnpm import:icons -- --source "D:\Code_Project\blog\.integration-work\static-import-source"
+pnpm import:frontend -- --source "..\.integration-work\static-import-source"
+pnpm import:icons -- --source "..\.integration-work\static-import-source"
 pnpm admin:create
 pnpm build
 pnpm start
@@ -77,9 +77,9 @@ pnpm start
 
 ```powershell
 # 只验证源数据、数量和路径，无外部写入
-pnpm import:frontend -- --source "D:\Code_Project\blog\.integration-work\static-import-source" --check
+pnpm import:frontend -- --source "..\.integration-work\static-import-source" --check
 # 执行可重复导入
-pnpm import:frontend -- --source "D:\Code_Project\blog\.integration-work\static-import-source"
+pnpm import:frontend -- --source "..\.integration-work\static-import-source"
 ```
 
 脚本使用 TypeScript AST（Abstract Syntax Tree，抽象语法树）读取实际数组和独立的 src/data/site-profile.ts 迁移文案（兼容旧组件提取），不执行前端代码。先验证所有路径并解码所有图片，遇到缺失/损坏文件会列出清单并停止。明确处理以下文件名映射：
@@ -95,7 +95,7 @@ pnpm import:frontend -- --source "D:\Code_Project\blog\.integration-work\static-
 
 文章、书籍、游戏、照片保留原整数 ID；分类、技能和社交链接按源数组位置分配稳定 ID。导入结束修正自增序列。文章封面固定按 `src/lib/blog.ts` 的原始 thumbnails 顺序绑定 ID 1～6；忽略存在索引错位的运行时封面选择函数。`content` 段落转换为 Markdown，`<code>` 内容解码并转换为行内代码。
 
-预期数量：文章 6、分类 6、标签 11、书籍 3、游戏 47、照片 10、技能 24、社交链接 3。媒体 76 = 博客封面 6 + 书封 3 + 游戏封面 47 + 照片展示图 10 + 原有缩略图 10。`all` 保留为兼容聚合分类，无文章引用；`category=all` 表示全部文章。该基础导入不包含图标。技能与社交图标使用独立的 `pnpm import:icons -- --source "D:\Code_Project\blog\.integration-work\static-import-source"` 补充迁移，增加 34 个媒体对象（完整基线 110）。页脚手势与两个 3D 模型仍保留前端。
+预期数量：文章 6、分类 6、标签 11、书籍 3、游戏 47、照片 10、技能 24、社交链接 3。媒体 76 = 博客封面 6 + 书封 3 + 游戏封面 47 + 照片展示图 10 + 原有缩略图 10。`all` 保留为兼容聚合分类，无文章引用；`category=all` 表示全部文章。该基础导入不包含图标。技能与社交图标使用独立的 `pnpm import:icons -- --source "..\.integration-work\static-import-source"` 补充迁移，增加 34 个媒体对象（完整基线 110）。页脚手势与两个 3D 模型仍保留前端。
 
 源游戏的 0 评分/时长原样保存，未出现的 platform 为 null；只转换约定占位值，不猜测真实游戏信息。`sourceName=xx`、`sourceUrl=#`、评论“暂无评价”转为 null。`likeLevel` 保持 0～5。
 

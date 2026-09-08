@@ -123,3 +123,13 @@ desktop.ini
 
 docs/screenshots/
 docs/*verification.json
+
+# Workspace scratch data and local archives
+.integration-work/
+blob-report/
+*.rar
+*.zip
+*.7z
+*.tar
+*.tar.gz
+*.tgz
