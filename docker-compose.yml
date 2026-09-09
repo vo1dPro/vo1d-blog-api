@@ -66,6 +66,7 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       S3_ENDPOINT: http://minio:9000
       PORT: 3000
+      API_PUBLIC_BASE_URL: ${API_PUBLIC_BASE_URL:-http://localhost:3100}
       HTTPS_PROXY: ${STEAM_DOCKER_HTTPS_PROXY:-}
       HTTP_PROXY: ${STEAM_DOCKER_HTTPS_PROXY:-}
       NO_PROXY: localhost,127.0.0.1,::1,minio,postgres

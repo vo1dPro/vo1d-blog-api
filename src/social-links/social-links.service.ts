@@ -75,7 +75,7 @@ export class SocialLinksService {
   }
 
   async create(dto: CreateSocialLinkDto): Promise<SocialLinkWithIcons> {
-    await this.media.assertImageReferences([dto.iconMediaId, dto.darkIconMediaId]);
+    await this.media.ensureDatabaseImages([dto.iconMediaId, dto.darkIconMediaId]);
     const row = await this.prisma.socialLink.create({
       data: {
         name: dto.name.trim(),
@@ -92,7 +92,7 @@ export class SocialLinksService {
   }
 
   async update(id: number, dto: UpdateSocialLinkDto): Promise<SocialLinkWithIcons> {
-    await this.media.assertImageReferences([dto.iconMediaId, dto.darkIconMediaId]);
+    await this.media.ensureDatabaseImages([dto.iconMediaId, dto.darkIconMediaId]);
     const row = await this.prisma.socialLink.update({
       where: { id },
       data: {

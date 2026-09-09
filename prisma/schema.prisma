@@ -78,9 +78,25 @@ model SiteProfile {
   @@map("site_profiles")
 }
 
+enum MediaStorage {
+  OBJECT_STORAGE
+  DATABASE
+}
+
+model MediaContent {
+  mediaId Int        @id
+  bytes   Bytes      @db.ByteA
+  sha256  String     @db.VarChar(64)
+  media   MediaAsset @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+
+  @@map("media_contents")
+}
+
 model MediaAsset {
   id                Int           @id @default(autoincrement())
   objectKey         String        @unique
+  storage           MediaStorage  @default(OBJECT_STORAGE)
+  content           MediaContent?
   mimeType          String
   sizeBytes         Int
   width             Int?

@@ -44,6 +44,7 @@ const environmentSchema = z.object({
   LOGIN_RATE_LIMIT_WINDOW_SECONDS: z.coerce.number().int().min(1).default(60),
   LOGIN_RATE_LIMIT_BLOCK_SECONDS: z.coerce.number().int().min(1).default(300),
   MEDIA_PUBLIC_BASE_URL: z.string().url(),
+  API_PUBLIC_BASE_URL: z.string().url().default('http://localhost:3100'),
   MEDIA_MAX_UPLOAD_BYTES: z.coerce
     .number()
     .int()
@@ -87,7 +88,10 @@ export function validateEnvironment(input: Record<string, unknown>): Environment
   const database = new URL(parsed.data.DATABASE_URL);
   if (!['postgresql:', 'postgres:'].includes(database.protocol))
     throw new Error('DATABASE_URL must use PostgreSQL');
-  for (const key of ['S3_ENDPOINT', 'MEDIA_PUBLIC_BASE_URL'] as const) {
+  if (parsed.data.NODE_ENV === 'production' && !input.API_PUBLIC_BASE_URL) {
+    throw new Error('Production API_PUBLIC_BASE_URL is required for database image URLs');
+  }
+  for (const key of ['S3_ENDPOINT', 'MEDIA_PUBLIC_BASE_URL', 'API_PUBLIC_BASE_URL'] as const) {
     const address = new URL(parsed.data[key]);
     if (
       !['http:', 'https:'].includes(address.protocol) ||

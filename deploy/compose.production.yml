@@ -1,0 +1,44 @@
+# Run from vo1d-blog-api with BOTH files; paths resolve against docker-compose.yml.
+# docker compose -f docker-compose.yml -f deploy/compose.production.yml ...
+services:
+  minio-app-init:
+    image: minio/mc:RELEASE.2025-08-13T08-35-41Z
+    depends_on:
+      minio-init:
+        condition: service_completed_successfully
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?required}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?required}
+      S3_BUCKET: ${S3_BUCKET:?required}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:?required}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:?required}
+    entrypoint: ['/bin/sh', '/init/init-minio-app.sh']
+    volumes:
+      - type: bind
+        source: ./deploy/init-minio-app.sh
+        target: /init/init-minio-app.sh
+        read_only: true
+        bind:
+          create_host_path: false
+    restart: 'no'
+
+  migrate:
+    profiles: ['ops']
+    build:
+      context: .
+      target: migration
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: 'no'
+
+  api:
+    environment:
+      NODE_ENV: production
+      TRUST_PROXY: 'true'
+    depends_on:
+      minio-app-init:
+        condition: service_completed_successfully

@@ -91,6 +91,10 @@ export class AppConfigService {
     return this.config.get('MEDIA_PUBLIC_BASE_URL', { infer: true }).replace(/\/+$/, '');
   }
 
+  get apiPublicBaseUrl(): string {
+    return this.config.get('API_PUBLIC_BASE_URL', { infer: true }).replace(/\/+$/, '');
+  }
+
   get mediaMaxUploadBytes(): number {
     return this.config.get('MEDIA_MAX_UPLOAD_BYTES', { infer: true });
   }

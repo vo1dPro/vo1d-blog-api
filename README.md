@@ -113,7 +113,7 @@ pnpm import:frontend -- --source "..\.integration-work\static-import-source"
 
 生产 R2/S3 配置：`S3_ENDPOINT, S3_REGION, S3_BUCKET, S3_ACCESS_KEY_ID, S3_SECRET_ACCESS_KEY, S3_FORCE_PATH_STYLE`；CDN 地址通过 `MEDIA_PUBLIC_BASE_URL` 设置，数据库无需改 URL。使用只允许该 bucket 必要读写的凭据；MinIO 根凭据仅限本地。CDN/object storage 必须允许前端读取图像所需的精确 CORS 来源，尤其游戏封面取色会读取 canvas 像素。
 
-图片会检查扩展名、MIME 和魔数并用 Sharp 重编码；数据库无二进制。删除媒体前检查所有业务引用，外键 RESTRICT 防止并发建立引用时误删。数据库删除成功后若对象删除失败，会返回 500 并记录孤立对象键；管理员按日志重试对象存储清理。PostgreSQL 与 S3 没有跨系统事务，必须保留日志并处理这种补偿失败。
+图片会检查扩展名、MIME 和魔数并用 Sharp 重编码；普通图片存入对象存储；图标二进制保存在 media_contents，通过 /media/:id/content 读取。已有图标用 pnpm migrate:icons -- --check 检查，再用 pnpm migrate:icons 迁移，保留媒体 ID 和原对象。删除媒体前检查所有业务引用，外键 RESTRICT 防止并发建立引用时误删。数据库删除成功后若对象删除失败，会返回 500 并记录孤立对象键；管理员按日志重试对象存储清理。PostgreSQL 与 S3 没有跨系统事务，必须保留日志并处理这种补偿失败。
 
 本版不提供任意 URL 预览代理、访客注册、评论、持久化点赞/收藏、统计、订阅。后台 UI（User Interface，用户界面）由独立 vo1d-blog-admin 提供且已接通；博客全部目标模块也已接通。[前端接入文档](docs/frontend-integration.md) 与 [API 契约](docs/api-contract.md) 说明现有客户端契约。
 
@@ -129,7 +129,7 @@ pnpm test:e2e
 pnpm build
 ```
 
-端到端测试必须先启动 Compose PostgreSQL/MinIO，并设置 `TEST_DATABASE_URL`。测试明确拒绝没有 `test` 名称分段的数据库、拒绝 production 模式、绝不回退至开发 `DATABASE_URL`；只清理隔离测试库及其媒体。测试覆盖认证、限流、发布隔离、过滤分页、冲突、真实 CHECK 约束、媒体重编码/引用删除、安全正文和 Swagger。导入集成测试读取 `FRONTEND_SOURCE_PATH`，未设置时读取相邻的 `../vo1d-blog`；持续集成须提供这份只读导入源。
+端到端测试必须先启动 Compose PostgreSQL/MinIO，并设置 `TEST_DATABASE_URL`。测试明确拒绝没有 `test` 名称分段的数据库、拒绝 production 模式、绝不回退至开发 `DATABASE_URL`；只清理隔离测试库及其媒体。测试覆盖认证、限流、发布隔离、过滤分页、冲突、真实 CHECK 约束、媒体重编码/引用删除、安全正文和 Swagger。导入集成测试读取 `FRONTEND_SOURCE_PATH`，必须显式设置为静态归档的解压目录；缺少或无效时立即报错，不启动该迁移测试的数据准备。持续集成须提供这份只读导入源。
 
 ```powershell
 curl.exe -i http://localhost:3100/health

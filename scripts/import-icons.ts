@@ -8,7 +8,6 @@ import sharp from 'sharp';
 import { validateEnvironment } from '../src/config/environment.js';
 import { AppConfigService } from '../src/config/app-config.service.js';
 import { PrismaService } from '../src/database/prisma.service.js';
-import { StorageService } from '../src/media/storage.service.js';
 import { parseFrontendLiteral, skillIconKey } from './frontend-source.js';
 import { z } from 'zod';
 
@@ -75,7 +74,6 @@ async function main(): Promise<void> {
   }
   const config = new AppConfigService(new ConfigService(validateEnvironment(process.env)));
   const prisma = new PrismaService(config);
-  const storage = new StorageService(config);
   const lock = new Client({ connectionString: config.databaseUrl });
   let changed = 0;
   try {
@@ -97,10 +95,8 @@ async function main(): Promise<void> {
           if (record[field] !== null || !file) continue;
           const image = prepared.get(file);
           if (!image) throw new Error('Missing prepared icon');
-          // Content-addressed keys make retries idempotent and restore missing imported objects.
-          await storage.putObject(image.objectKey, image.buffer, 'image/webp');
-          try {
-            await prisma.$transaction(async (tx) => {
+          // Content-addressed media IDs remain compatible; image bytes now live in PostgreSQL.
+          await prisma.$transaction(async (tx) => {
               const asset = await tx.mediaAsset.upsert({
                 where: { objectKey: image.objectKey },
                 update: {},
@@ -114,6 +110,16 @@ async function main(): Promise<void> {
                   altText: `${record.name} icon`,
                 },
               });
+              await tx.mediaContent.upsert({
+                where: { mediaId: asset.id },
+                create: {
+                  mediaId: asset.id,
+                  bytes: Uint8Array.from(image.buffer),
+                  sha256: createHash('sha256').update(image.buffer).digest('hex'),
+                },
+                update: {},
+              });
+              await tx.mediaAsset.update({ where: { id: asset.id }, data: { storage: 'DATABASE' } });
               const where = { id: record.id, iconKey: record.iconKey, [field]: null };
               const data = { [field]: asset.id };
               const updated =
@@ -121,13 +127,7 @@ async function main(): Promise<void> {
                   ? await tx.skill.updateMany({ where, data })
                   : await tx.socialLink.updateMany({ where, data });
               changed += updated.count;
-            });
-          } catch (error: unknown) {
-            console.error(
-              `Icon import failed after upload; inspect unreferenced object: ${image.objectKey}`,
-            );
-            throw error;
-          }
+          });
         }
       }
     }
@@ -136,7 +136,6 @@ async function main(): Promise<void> {
     );
   } finally {
     await Promise.allSettled([lock.end(), prisma.$disconnect()]);
-    storage.onApplicationShutdown();
   }
 }
 main().catch((error: unknown) => {

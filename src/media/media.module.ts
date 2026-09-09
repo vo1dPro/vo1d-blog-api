@@ -6,6 +6,7 @@ import { AppConfigService } from '../config/app-config.service.js';
 import { AdminMediaController } from './admin-media.controller.js';
 import { MediaService } from './media.service.js';
 import { StorageService } from './storage.service.js';
+import { MediaController } from './media.controller.js';
 
 @Module({
   imports: [
@@ -18,7 +19,7 @@ import { StorageService } from './storage.service.js';
       }),
     }),
   ],
-  controllers: [AdminMediaController],
+  controllers: [AdminMediaController, MediaController],
   providers: [MediaService, StorageService],
   exports: [MediaService, StorageService],
 })

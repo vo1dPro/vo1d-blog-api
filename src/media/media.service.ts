@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { extname } from 'node:path';
 import {
   BadRequestException,
@@ -20,6 +20,7 @@ import type { PaginationQueryDto, PaginatedResponseDto } from '../common/dto/pag
 
 const ALLOWED_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp']);
 const ALLOWED_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+const DATABASE_IMAGE_MAX_BYTES = 10 * 1024 * 1024;
 
 interface ProcessedImage {
   buffer: Buffer;
@@ -41,7 +42,10 @@ export class MediaService {
   toResponse(asset: MediaAsset): MediaResponse {
     return {
       id: asset.id,
-      url: `${this.config.mediaPublicBaseUrl}/${asset.objectKey}`,
+      url:
+        asset.storage === 'DATABASE'
+          ? `${this.config.apiPublicBaseUrl}/media/${asset.id}/content`
+          : `${this.config.mediaPublicBaseUrl}/${asset.objectKey}`,
       mimeType: asset.mimeType,
       sizeBytes: asset.sizeBytes,
       width: asset.width,
@@ -105,6 +109,7 @@ export class MediaService {
     const uploadedKeys: string[] = [];
     try {
       for (const image of processed) {
+        if (purpose === 'ICON') continue;
         uploadedKeys.push(image.objectKey);
         await this.storage.putObject(image.objectKey, image.buffer, 'image/webp');
       }
@@ -120,6 +125,17 @@ export class MediaService {
               height: image.height,
               altText: nullableText(altText),
               kind: image.kind,
+              ...(purpose === 'ICON'
+                ? {
+                    storage: 'DATABASE',
+                    content: {
+                      create: {
+                        bytes: Uint8Array.from(image.buffer),
+                        sha256: createHash('sha256').update(image.buffer).digest('hex'),
+                      },
+                    },
+                  }
+                : {}),
             },
           }),
         ),
@@ -158,6 +174,76 @@ export class MediaService {
     }
   }
 
+  async databaseContent(id: number) {
+    const content = await this.prisma.mediaContent.findUnique({
+      where: { mediaId: id },
+      include: { media: true },
+    });
+    if (content?.media.storage !== 'DATABASE') {
+      throw new NotFoundException('Database image not found');
+    }
+    return content;
+  }
+
+  /** Preserve media IDs and exact pixels when an existing library image becomes an icon. */
+  async ensureDatabaseImages(
+    ids: readonly (number | null | undefined)[],
+    checkOnly = false,
+  ): Promise<{ existing: number; migrated: number; pending: number }> {
+    await this.assertImageReferences(ids);
+    const result = { existing: 0, migrated: 0, pending: 0 };
+    for (const id of new Set(ids)) {
+      if (id == null) continue;
+      const asset = await this.prisma.mediaAsset.findUniqueOrThrow({ where: { id } });
+      if (asset.storage === 'DATABASE') {
+        const content = await this.databaseContent(id);
+        if (
+          content.bytes.byteLength !== asset.sizeBytes ||
+          createHash('sha256').update(content.bytes).digest('hex') !== content.sha256
+        ) {
+          throw new ConflictException('Database image integrity check failed');
+        }
+        result.existing += 1;
+        continue;
+      }
+      const bytes = await this.storage.getObject(asset.objectKey, DATABASE_IMAGE_MAX_BYTES);
+      const detected = await fileTypeFromBuffer(bytes);
+      if (
+        bytes.byteLength !== asset.sizeBytes ||
+        !detected ||
+        !ALLOWED_MIME_TYPES.has(detected.mime) ||
+        detected.mime !== asset.mimeType
+      ) {
+        throw new ConflictException('Stored image does not match its database metadata');
+      }
+      const metadata = await sharp(bytes, {
+        failOn: 'error',
+        limitInputPixels: 80_000_000,
+      }).metadata();
+      if (metadata.width !== asset.width || metadata.height !== asset.height) {
+        throw new ConflictException('Stored image dimensions do not match its database metadata');
+      }
+      if (checkOnly) {
+        result.pending += 1;
+        continue;
+      }
+      const sha256 = createHash('sha256').update(bytes).digest('hex');
+      await this.prisma.$transaction(async (tx) => {
+        // A repeated/concurrent migration keeps the first committed image content.
+        const content = await tx.mediaContent.upsert({
+          where: { mediaId: id },
+          create: { mediaId: id, bytes: Uint8Array.from(bytes), sha256 },
+          update: {},
+        });
+        if (content.sha256 !== sha256) throw new ConflictException('Icon changed during migration');
+        await tx.mediaAsset.update({ where: { id }, data: { storage: 'DATABASE' } });
+      });
+      // Existing MinIO objects are deliberately retained for rollback; never delete shared originals.
+      result.migrated += 1;
+    }
+    return result;
+  }
+
   async deleteUnreferenced(id: number): Promise<void> {
     const asset = await this.prisma.mediaAsset.findUnique({ where: { id } });
     if (asset === null) {
@@ -184,6 +270,7 @@ export class MediaService {
     }
 
     await this.prisma.mediaAsset.delete({ where: { id } });
+    if (asset.storage === 'DATABASE') return;
     try {
       await this.storage.deleteObject(asset.objectKey);
     } catch (error: unknown) {

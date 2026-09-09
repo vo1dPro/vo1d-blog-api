@@ -14,6 +14,7 @@ import { SteamService } from '../src/steam/steam.service.js';
 import { z } from 'zod';
 import type { PrismaService } from '../src/database/prisma.service.js';
 import type { StorageService } from '../src/media/storage.service.js';
+import { MediaService } from '../src/media/media.service.js';
 import { configureTestEnvironment, deployTestMigrations } from './support/test-environment.js';
 
 const origin = 'http://localhost:5173';
@@ -334,6 +335,30 @@ describe('REST API with real PostgreSQL and S3-compatible storage', () => {
       .attach('file', image, { filename: 'icon.png', contentType: 'image/png' })
       .expect(201);
     const id = z.object({ asset: z.object({ id: z.number() }) }).parse(upload.body).asset.id;
+    const stored = await prisma.mediaAsset.findUniqueOrThrow({
+      where: { id },
+      include: { content: true },
+    });
+    expect(stored.storage).toBe('DATABASE');
+    expect(stored.content?.bytes.byteLength).toBe(stored.sizeBytes);
+    const content = await request(server)
+      .get(`/media/${id}/content`)
+      .set('Origin', origin)
+      .expect(200);
+    expect(content.headers['content-type']).toContain('image/webp');
+    expect(content.headers['access-control-allow-origin']).toBe(origin);
+    expect(content.headers['cross-origin-resource-policy']).toBe('cross-origin');
+    expect(content.headers['cache-control']).toBe('public, max-age=86400');
+    expect(
+      createHash('sha256')
+        .update(content.body as Buffer)
+        .digest('hex'),
+    ).toBe(stored.content?.sha256);
+    await request(server)
+      .get(`/media/${id}/content`)
+      .set('If-None-Match', String(content.headers.etag))
+      .expect(304);
+    await request(server).get(`/media/${coverId}/content`).expect(404);
     const created = await post('admin/skills', {
       name: 'Icon test',
       iconKey: 'custom',
@@ -384,6 +409,52 @@ describe('REST API with real PostgreSQL and S3-compatible storage', () => {
     await remove('admin/media/' + id)
       .set('Cookie', cookie)
       .expect(204);
+    expect(await prisma.mediaContent.findUnique({ where: { mediaId: id } })).toBeNull();
+    await request(server).get(`/media/${id}/content`).expect(404);
+  });
+
+  it('checks and migrates existing images without changing IDs, bytes or deleting storage objects', async () => {
+    const image = await sharp({
+      create: { width: 24, height: 24, channels: 4, background: '#225588' },
+    })
+      .png()
+      .toBuffer();
+    const upload = await request(server)
+      .post('/admin/media/images')
+      .set('Origin', origin)
+      .set('Cookie', cookie)
+      .field('purpose', 'IMAGE')
+      .attach('file', image, { filename: 'existing.png', contentType: 'image/png' })
+      .expect(201);
+    const id = z.object({ asset: z.object({ id: z.number() }) }).parse(upload.body).asset.id;
+    const before = await prisma.mediaAsset.findUniqueOrThrow({ where: { id } });
+    const original = await storage.getObject(before.objectKey, 10 * 1024 * 1024);
+    const media = app.get(MediaService);
+    expect(await media.ensureDatabaseImages([id, id, null], true)).toEqual({
+      existing: 0,
+      migrated: 0,
+      pending: 1,
+    });
+    expect(await prisma.mediaContent.findUnique({ where: { mediaId: id } })).toBeNull();
+    expect(await media.ensureDatabaseImages([id])).toEqual({
+      existing: 0,
+      migrated: 1,
+      pending: 0,
+    });
+    expect(await media.ensureDatabaseImages([id])).toEqual({
+      existing: 1,
+      migrated: 0,
+      pending: 0,
+    });
+    const after = await prisma.mediaAsset.findUniqueOrThrow({
+      where: { id },
+      include: { content: true },
+    });
+    expect(after.objectKey).toBe(before.objectKey);
+    expect(Buffer.from(after.content!.bytes)).toEqual(original);
+    expect(await storage.getObject(before.objectKey, 10 * 1024 * 1024)).toEqual(original);
+    await prisma.mediaContent.update({ where: { mediaId: id }, data: { sha256: '0'.repeat(64) } });
+    await expect(media.ensureDatabaseImages([id])).rejects.toThrow('integrity check failed');
   });
 
   it('serves root routes only and issues root-scoped cookies', async () => {

@@ -72,7 +72,7 @@ export class SkillsService {
   }
 
   async create(dto: CreateSkillDto): Promise<SkillWithIcons> {
-    await this.media.assertImageReferences([dto.iconMediaId, dto.darkIconMediaId]);
+    await this.media.ensureDatabaseImages([dto.iconMediaId, dto.darkIconMediaId]);
     const row = await this.prisma.skill.create({
       data: {
         name: dto.name.trim(),
@@ -87,7 +87,7 @@ export class SkillsService {
   }
 
   async update(id: number, dto: UpdateSkillDto): Promise<SkillWithIcons> {
-    await this.media.assertImageReferences([dto.iconMediaId, dto.darkIconMediaId]);
+    await this.media.ensureDatabaseImages([dto.iconMediaId, dto.darkIconMediaId]);
     const row = await this.prisma.skill.update({
       where: { id },
       data: {

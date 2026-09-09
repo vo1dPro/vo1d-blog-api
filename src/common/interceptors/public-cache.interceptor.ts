@@ -8,6 +8,8 @@ export class PublicCacheInterceptor implements NestInterceptor {
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     const request = context.switchToHttp().getRequest<Request>();
     const response = context.switchToHttp().getResponse<Response>();
+    // Binary responses provide their own content hash and cache headers.
+    if (/^\/media\/\d+\/content\/?$/.test(request.path)) return next.handle();
     const isPublicGet =
       request.method === 'GET' &&
       request.path.startsWith('/') &&

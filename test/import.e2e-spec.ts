@@ -1,4 +1,5 @@
 import { resolve } from 'node:path';
+import { existsSync } from 'node:fs';
 import { DeleteObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { Pool } from 'pg';
@@ -11,7 +12,18 @@ let prisma: PrismaClient;
 let sql: Pool;
 let s3: S3Client;
 let bucket: string;
-const source = process.env.FRONTEND_SOURCE_PATH ?? resolve('../vo1d-blog');
+const sourcePath = process.env.FRONTEND_SOURCE_PATH;
+if (!sourcePath?.trim()) {
+  throw new Error(
+    'FRONTEND_SOURCE_PATH is required: point it at the extracted static import archive. The current blog no longer contains migration data.',
+  );
+}
+const source = resolve(sourcePath);
+if (!existsSync(resolve(source, 'src/data/articles.ts'))) {
+  throw new Error(
+    'FRONTEND_SOURCE_PATH must contain src/data/articles.ts; no test database setup was started.',
+  );
+}
 
 async function clean(): Promise<void> {
   const assets = await prisma.mediaAsset.findMany({ select: { objectKey: true } });
