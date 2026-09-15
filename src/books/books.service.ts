@@ -87,6 +87,7 @@ export class BooksService {
       sourceName: dto.sourceName ?? null,
       sourceUrl: dto.sourceUrl ?? null,
       readingOrder: dto.readingOrder,
+      readingNotes: dto.readingNotes ?? '',
       lastReadAt: this.toNullableDate(dto.lastReadAt),
       startedAt: this.toNullableDate(dto.startedAt),
       finishedAt: this.toNullableDate(dto.finishedAt),
@@ -114,6 +115,7 @@ export class BooksService {
     if (dto.sourceName !== undefined) data.sourceName = dto.sourceName;
     if (dto.sourceUrl !== undefined) data.sourceUrl = dto.sourceUrl;
     if (dto.readingOrder !== undefined) data.readingOrder = dto.readingOrder;
+    if (dto.readingNotes !== undefined) data.readingNotes = dto.readingNotes;
     if (dto.lastReadAt !== undefined) data.lastReadAt = this.toNullableDate(dto.lastReadAt);
     if (dto.startedAt !== undefined) data.startedAt = this.toNullableDate(dto.startedAt);
     if (dto.finishedAt !== undefined) data.finishedAt = this.toNullableDate(dto.finishedAt);
@@ -195,6 +197,7 @@ export class BooksService {
       sourceName: book.sourceName,
       sourceUrl: book.sourceUrl,
       readingOrder: book.readingOrder,
+      readingNotes: book.readingNotes,
       lastReadAt: book.lastReadAt?.toISOString() ?? null,
       startedAt: book.startedAt?.toISOString() ?? null,
       finishedAt: book.finishedAt?.toISOString() ?? null,

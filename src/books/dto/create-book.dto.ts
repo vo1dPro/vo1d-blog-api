@@ -55,6 +55,16 @@ export class CreateBookDto {
   @Min(1)
   readingOrder!: number;
 
+  @ApiPropertyOptional({
+    default: '',
+    maxLength: 50000,
+    description: 'Plain-text reading notes; an empty string clears the notes.',
+  })
+  @ValidateIf((_object: unknown, value: unknown) => value !== undefined)
+  @IsString()
+  @MaxLength(50000)
+  readingNotes?: string;
+
   @ApiPropertyOptional({ type: String, format: 'date-time', nullable: true })
   @IsOptional()
   @IsISO8601({ strict: true })

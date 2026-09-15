@@ -1,0 +1,1 @@
+ALTER TABLE "books" ADD COLUMN "readingNotes" TEXT NOT NULL DEFAULT '';

@@ -28,6 +28,7 @@ const cases: DtoCase[] = [
       'coverMediaId',
       'accent',
       'readingOrder',
+      'readingNotes',
       'progress',
       'isVisible',
       'sortOrder',
@@ -84,6 +85,14 @@ const cases: DtoCase[] = [
 ];
 
 describe('content update DTO null semantics', () => {
+  it('accepts clearing reading notes and rejects oversized or non-text content', async () => {
+    for (const readingNotes of ['', '第一段心得。\n\n第二段心得。']) {
+      expect(await validate(plainToInstance(UpdateBookDto, { readingNotes }))).toHaveLength(0);
+    }
+    for (const readingNotes of [null, 123, 'a'.repeat(50001)]) {
+      expect(await validate(plainToInstance(UpdateBookDto, { readingNotes }))).not.toHaveLength(0);
+    }
+  });
   for (const dto of cases) {
     it(`${dto.name}: omitted fields remain optional`, async () => {
       expect(await validate(plainToInstance(dto.type, {}))).toHaveLength(0);

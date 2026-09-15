@@ -1192,6 +1192,26 @@ describe('REST API with real PostgreSQL and S3-compatible storage', () => {
     }).expect(400);
   });
 
+  it('persists reading notes, publishes them verbatim, preserves omitted notes and allows clearing', async () => {
+    const readingNotes = '第一段心得。\n\n<script>这是纯文本，不应执行</script>';
+    await patch(`admin/books/${bookId}`, { readingNotes }).expect(200);
+    expect(await prisma.book.findUniqueOrThrow({ where: { id: bookId } })).toMatchObject({
+      readingNotes,
+    });
+    const page = pageSchema.parse((await get('books').expect(200)).body);
+    expect(page.items.find((item) => item.id === bookId)).toMatchObject({ readingNotes });
+    const updated = entitySchema.parse(
+      (await patch(`admin/books/${bookId}`, { progress: 42 }).expect(200)).body,
+    );
+    expect(updated.readingNotes).toBe(readingNotes);
+    await patch(`admin/books/${bookId}`, { readingNotes: null }).expect(400);
+    await patch(`admin/books/${bookId}`, { readingNotes: 'a'.repeat(50001) }).expect(400);
+    const cleared = entitySchema.parse(
+      (await patch(`admin/books/${bookId}`, { readingNotes: '' }).expect(200)).body,
+    );
+    expect(cleared.readingNotes).toBe('');
+  });
+
   it('preserves zero values and permits range endpoints', async () => {
     await patch(`admin/books/${bookId}`, { progress: 100 }).expect(200);
     const book = entitySchema.parse(

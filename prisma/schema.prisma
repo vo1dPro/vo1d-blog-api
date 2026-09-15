@@ -193,6 +193,7 @@ model Book {
   sourceName   String?
   sourceUrl    String?
   readingOrder Int
+  readingNotes String     @default("")
   lastReadAt   DateTime?  @db.Timestamptz(3)
   startedAt    DateTime?  @db.Timestamptz(3)
   finishedAt   DateTime?  @db.Timestamptz(3)

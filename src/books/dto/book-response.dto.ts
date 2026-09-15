@@ -58,6 +58,9 @@ export class BookResponseDto {
   @ApiProperty()
   readingOrder!: number;
 
+  @ApiProperty({ maxLength: 50000 })
+  readingNotes!: string;
+
   @ApiProperty({ type: String, nullable: true, format: 'date-time' })
   lastReadAt!: string | null;
 
