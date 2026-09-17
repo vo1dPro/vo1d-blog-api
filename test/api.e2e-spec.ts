@@ -11,6 +11,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { AppConfigService } from '../src/config/app-config.service.js';
 import { SteamClient, SteamUpstreamError } from '../src/steam/steam.client.js';
 import { SteamService } from '../src/steam/steam.service.js';
+import { SteamPresenceService } from '../src/steam/steam-presence.service.js';
 import { z } from 'zod';
 import type { PrismaService } from '../src/database/prisma.service.js';
 import type { StorageService } from '../src/media/storage.service.js';
@@ -248,6 +249,97 @@ describe('REST API with real PostgreSQL and S3-compatible storage', () => {
   });
 
   afterEach(() => vi.restoreAllMocks());
+
+  it('controller defaults to false, supports both boolean values, and preserves editorial data', async () => {
+    const original = await prisma.game.findUniqueOrThrow({ where: { id: gameId } });
+    expect(original.usesController).toBe(false);
+    for (const usesController of [true, false]) {
+      const response = await request(server)
+        .patch(`/admin/games/${gameId}`)
+        .set('Origin', origin)
+        .set('Cookie', cookie)
+        .send({ usesController })
+        .expect(200);
+      expect(response.body).toMatchObject({
+        usesController,
+        title: original.title,
+        platform: original.platform,
+        manualPlaytimeHours: original.playtimeHours,
+      });
+      const stored = await prisma.game.findUniqueOrThrow({ where: { id: gameId } });
+      expect(stored).toEqual({ ...original, usesController, updatedAt: stored.updatedAt });
+    }
+    for (const usesController of [null, 'true', 1]) {
+      await request(server)
+        .patch(`/admin/games/${gameId}`)
+        .set('Origin', origin)
+        .set('Cookie', cookie)
+        .send({ usesController })
+        .expect(400);
+    }
+    const created = await request(server)
+      .post('/admin/games')
+      .set('Origin', origin)
+      .set('Cookie', cookie)
+      .send({
+        title: 'Default controller',
+        coverMediaId: coverId,
+        rating: 0,
+        playtimeHours: 0,
+        likeLevel: 0,
+      })
+      .expect(201);
+    expect(created.body).toMatchObject({ usesController: false });
+  });
+
+  it('presence preserves publishers and the public player hour rules, and never exposes hidden games', async () => {
+    enableMockSteam();
+    await app.get(SteamService).sync();
+    await prisma.game.update({
+      where: { id: gameId },
+      data: {
+        steamAppId: 730,
+        platform: 'Original Publisher',
+        usesController: true,
+        playtimeHours: 0,
+      },
+    });
+    await prisma.game.create({
+      data: { title: 'Other', coverMediaId: coverId, rating: 0, playtimeHours: 8, likeLevel: 0 },
+    });
+    await prisma.game.create({
+      data: {
+        title: 'Hidden',
+        coverMediaId: coverId,
+        rating: 0,
+        playtimeHours: 999,
+        likeLevel: 0,
+        isVisible: false,
+      },
+    });
+    vi.spyOn(app.get(SteamPresenceService), 'read').mockResolvedValue({
+      source: 'steam',
+      state: 'playing',
+      appId: 730,
+      updatedAt: new Date().toISOString(),
+      expiresAt: new Date(Date.now() + 180000).toISOString(),
+      refreshAfterMs: 180000,
+    });
+    const response = await request(server).get('/games/playing').expect(200);
+    expect(response.headers['cache-control']).toBe('no-store');
+    expect(response.body).toMatchObject({
+      state: 'playing',
+      totalGameHours: 10,
+      game: { id: gameId, platform: 'Original Publisher', playtimeHours: 2, usesController: true },
+    });
+    expect(response.body).not.toHaveProperty('appId');
+    await prisma.game.update({ where: { id: gameId }, data: { playtimeHours: 7 } });
+    const custom = await request(server).get('/games/playing').expect(200);
+    expect(custom.body).toMatchObject({ totalGameHours: 15, game: { playtimeHours: 7 } });
+    await prisma.game.update({ where: { id: gameId }, data: { isVisible: false } });
+    const hidden = await request(server).get('/games/playing').expect(200);
+    expect(hidden.body).toMatchObject({ state: 'idle', game: null });
+  });
 
   function enableMockSteam() {
     vi.spyOn(app.get(AppConfigService), 'steam', 'get').mockReturnValue({

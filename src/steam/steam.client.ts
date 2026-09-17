@@ -71,9 +71,45 @@ export function parseLibrary(owned: unknown, recent: unknown): SteamLibraryGame[
   }));
 }
 
+export function parsePlayingApp(value: unknown, steamId: string): number | null {
+  const parsed = z
+    .object({
+      response: z.object({
+        players: z
+          .array(
+            z.object({
+              steamid: z.string(),
+              communityvisibilitystate: z.number().int(),
+              personastate: z.number().int().min(0).max(6),
+              gameid: z.string().optional(),
+            }),
+          )
+          .max(100),
+      }),
+    })
+    .safeParse(value);
+  if (!parsed.success) throw new SteamUpstreamError('INVALID_RESPONSE');
+  const player = parsed.data.response.players.find((item) => item.steamid === steamId);
+  if (!player) throw new SteamUpstreamError('INVALID_RESPONSE');
+  if (player.communityvisibilitystate !== 3 || !/^\d+$/.test(player.gameid ?? '')) return null;
+  const appId = Number(player.gameid);
+  // Non-Steam shortcuts can have 64-bit game IDs; they are not catalog app IDs.
+  return Number.isSafeInteger(appId) && appId > 0 && appId <= 2_147_483_647 ? appId : null;
+}
+
 @Injectable()
 export class SteamClient {
   constructor(private readonly config: AppConfigService) {}
+
+  async getPlayingApp(account: SteamAccount): Promise<number | null> {
+    const url = new URL('https://api.steampowered.com/ISteamUser/GetPlayerSummaries/v2/');
+    url.search = new URLSearchParams({
+      key: account.apiKey,
+      steamids: account.steamId,
+      format: 'json',
+    }).toString();
+    return parsePlayingApp(await this.request(url), account.steamId);
+  }
 
   async getLibrary(account?: SteamAccount): Promise<SteamLibraryGame[]> {
     const owned = await this.get(
@@ -102,6 +138,11 @@ export class SteamClient {
       format: 'json',
       ...params,
     }).toString();
+    return this.request(url);
+  }
+
+  private async request(url: URL): Promise<unknown> {
+    const settings = this.config.steam;
     try {
       const response = await fetch(url, {
         redirect: 'error',

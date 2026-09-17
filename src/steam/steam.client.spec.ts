@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AppConfigService } from '../config/app-config.service.js';
 import type { Environment } from '../config/environment.js';
-import { SteamClient, parseLibrary } from './steam.client.js';
+import { SteamClient, parseLibrary, parsePlayingApp } from './steam.client.js';
 import { normalizeSteamTitle } from './steam.service.js';
 
 const owned = {
@@ -39,6 +39,40 @@ afterEach(() => {
 });
 
 describe('Steam contract and safe transport', () => {
+  it('only accepts a current public Steam game for the configured player', async () => {
+    const player = {
+      steamid: settings.steamId,
+      communityvisibilitystate: 3,
+      personastate: 1,
+      gameid: '730',
+    };
+    const payload = (value: object) => ({ response: { players: [value] } });
+    expect(parsePlayingApp(payload(player), settings.steamId)).toBe(730);
+    expect(parsePlayingApp(payload({ ...player, gameid: undefined }), settings.steamId)).toBeNull();
+    expect(
+      parsePlayingApp(payload({ ...player, communityvisibilitystate: 1 }), settings.steamId),
+    ).toBeNull();
+    expect(
+      parsePlayingApp(payload({ ...player, gameid: '18446744073709551615' }), settings.steamId),
+    ).toBeNull();
+    expect(() =>
+      parsePlayingApp(payload({ ...player, steamid: 'other' }), settings.steamId),
+    ).toThrow('INVALID_RESPONSE');
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(Response.json(payload(player)));
+    vi.stubGlobal('fetch', fetcher);
+    expect(
+      await client().getPlayingApp({
+        name: 'test',
+        steamId: settings.steamId,
+        apiKey: settings.apiKey,
+      }),
+    ).toBe(730);
+    const [url, options] = fetcher.mock.calls[0]!;
+    expect((url as URL).origin + (url as URL).pathname).toBe(
+      'https://api.steampowered.com/ISteamUser/GetPlayerSummaries/v2/',
+    );
+    expect(options?.redirect).toBe('error');
+  });
   it('keeps exact minutes and UTC last-played dates', () => {
     expect(parseLibrary(owned, recent)).toEqual([
       {

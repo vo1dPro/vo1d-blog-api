@@ -64,6 +64,9 @@ export class GameResponseDto {
   })
   playtimeHours!: number;
 
+  @ApiProperty({ default: false })
+  usesController!: boolean;
+
   @ApiProperty({ minimum: 0, maximum: 5 })
   likeLevel!: number;
 

@@ -212,20 +212,21 @@ model Book {
 }
 
 model Game {
-  id            Int        @id @default(autoincrement())
-  title         String
-  platform      String?
-  coverMediaId  Int
-  rating        Decimal    @db.Decimal(3, 1)
-  playtimeHours Int
-  likeLevel     Int
-  comment       String?
-  isVisible     Boolean    @default(true)
-  sortOrder     Int        @default(0)
-  createdAt     DateTime   @default(now()) @db.Timestamptz(3)
-  updatedAt     DateTime   @updatedAt @db.Timestamptz(3)
-  coverMedia    MediaAsset @relation("GameCover", fields: [coverMediaId], references: [id], onDelete: Restrict)
-  steamAppId    Int?       @unique
+  id             Int        @id @default(autoincrement())
+  title          String
+  platform       String?
+  coverMediaId   Int
+  rating         Decimal    @db.Decimal(3, 1)
+  playtimeHours  Int
+  usesController Boolean    @default(false)
+  likeLevel      Int
+  comment        String?
+  isVisible      Boolean    @default(true)
+  sortOrder      Int        @default(0)
+  createdAt      DateTime   @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime   @updatedAt @db.Timestamptz(3)
+  coverMedia     MediaAsset @relation("GameCover", fields: [coverMediaId], references: [id], onDelete: Restrict)
+  steamAppId     Int?       @unique
 
   @@index([coverMediaId])
   @@index([sortOrder])

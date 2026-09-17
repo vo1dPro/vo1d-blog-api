@@ -1,0 +1,1 @@
+ALTER TABLE "games" ADD COLUMN "usesController" BOOLEAN NOT NULL DEFAULT false;

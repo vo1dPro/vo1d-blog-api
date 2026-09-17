@@ -10,6 +10,8 @@ import type { GameMediaResponseDto, GameResponseDto } from './dto/game-response.
 import type { UpdateGameDto } from './dto/update-game.dto.js';
 import { SteamService } from '../steam/steam.service.js';
 import type { SteamGameDto } from '../steam/steam.dto.js';
+import { SteamPresenceService } from '../steam/steam-presence.service.js';
+import type { GamePresenceResponseDto } from './dto/game-presence-response.dto.js';
 
 type GameWithCover = Prisma.GameGetPayload<{ include: { coverMedia: true } }>;
 
@@ -19,7 +21,32 @@ export class GamesService {
     private readonly prisma: PrismaService,
     private readonly config: AppConfigService,
     private readonly steamService: SteamService,
+    private readonly steamPresence: SteamPresenceService,
   ) {}
+
+  async playing(): Promise<GamePresenceResponseDto> {
+    const presence = await this.steamPresence.read();
+    const { appId, ...publicPresence } = presence;
+    if (presence.state !== 'playing') {
+      return { ...publicPresence, game: null, totalGameHours: 0 };
+    }
+    // Use the same editorial fields and effective hours as the public player.
+    const records = await this.prisma.game.findMany({
+      where: { isVisible: true },
+      include: { coverMedia: true },
+    });
+    const games = await this.mapGames(records);
+    const game = games.find((item) => item.steamAppId === appId) ?? null;
+    return {
+      source: 'steam',
+      state: game ? 'playing' : 'idle',
+      game,
+      totalGameHours: games.reduce((total, item) => total + item.playtimeHours, 0),
+      updatedAt: presence.updatedAt,
+      expiresAt: presence.expiresAt,
+      refreshAfterMs: presence.refreshAfterMs,
+    };
+  }
 
   async findPublic(query: PaginationQueryDto): Promise<PaginatedResponseDto<GameResponseDto>> {
     const where = { isVisible: true };
@@ -91,6 +118,7 @@ export class GamesService {
       coverMediaId: dto.coverMediaId,
       rating: dto.rating,
       playtimeHours: dto.playtimeHours,
+      usesController: dto.usesController ?? false,
       likeLevel: dto.likeLevel,
       comment: dto.comment ?? null,
       isVisible: dto.isVisible ?? true,
@@ -117,6 +145,7 @@ export class GamesService {
     if (dto.coverMediaId !== undefined) data.coverMediaId = dto.coverMediaId;
     if (dto.rating !== undefined) data.rating = dto.rating;
     if (dto.playtimeHours !== undefined) data.playtimeHours = dto.playtimeHours;
+    if (dto.usesController !== undefined) data.usesController = dto.usesController;
     if (dto.likeLevel !== undefined) data.likeLevel = dto.likeLevel;
     if (dto.comment !== undefined) data.comment = dto.comment;
     if (dto.isVisible !== undefined) data.isVisible = dto.isVisible;
@@ -208,6 +237,7 @@ export class GamesService {
       manualPlaytimeHours: game.playtimeHours,
       title: game.title,
       platform: game.platform,
+      usesController: game.usesController,
       coverMediaId: game.coverMediaId,
       cover: this.mapMedia(game.coverMedia),
       rating: Number(game.rating),

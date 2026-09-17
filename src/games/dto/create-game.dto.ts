@@ -59,6 +59,14 @@ export class CreateGameDto {
   @Min(0)
   playtimeHours!: number;
 
+  @ApiPropertyOptional({
+    default: false,
+    description: 'Whether this game is played with a controller',
+  })
+  @ValidateIf((_object: unknown, value: unknown) => value !== undefined)
+  @IsBoolean()
+  usesController?: boolean;
+
   @ApiProperty({ minimum: 0, maximum: 5 })
   @IsInt()
   @Min(0)
