@@ -351,3 +351,10 @@ model SocialLink {
   @@index([isVisible, sortOrder])
   @@map("social_links")
 }
+
+model CreationLayout {
+  id Int @id @default(1)
+  revision Int @default(0)
+  config Json @default("{\"categories\":[],\"entries\":[]}")
+  @@map("creation_layout")
+}

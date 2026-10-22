@@ -1,4 +1,15 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, Post, Query, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Param,
+  Post,
+  Put,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiCookieAuth, ApiProperty, ApiTags } from '@nestjs/swagger';
 import { IsString, MaxLength } from 'class-validator';
 import { SessionAuthGuard } from '../auth/session-auth.guard.js';
@@ -17,8 +28,14 @@ class ImportCreationDto {
 @Controller('creations')
 export class CreationsController {
   constructor(private readonly service: CreationsService) {}
+  @Get('layout')
+  layout() {
+    return this.service.layout();
+  }
   @Get()
-  feed(@Query() query: PaginationQueryDto) { return this.service.feed(query); }
+  feed(@Query() query: PaginationQueryDto) {
+    return this.service.feed(query);
+  }
 }
 
 @ApiTags('admin/creations')
@@ -27,13 +44,33 @@ export class CreationsController {
 @Controller('admin/creations')
 export class AdminCreationsController {
   constructor(private readonly service: CreationsService) {}
+  @Get('layout')
+  layout() {
+    return this.service.layout();
+  }
+  @Put('layout')
+  saveLayout(@Body() body: unknown) {
+    return this.service.saveLayout(body);
+  }
   @Get('status')
-  status() { return { owner: this.service.owner, profileUrl: `https://x.com/${this.service.owner}`, automaticSync: false }; }
+  status() {
+    return {
+      owner: this.service.owner,
+      profileUrl: `https://x.com/${this.service.owner}`,
+      automaticSync: false,
+    };
+  }
   @Get()
-  list(@Query() query: PaginationQueryDto) { return this.service.list(query); }
+  list(@Query() query: PaginationQueryDto) {
+    return this.service.list(query);
+  }
   @Post('import-x')
-  importX(@Body() body: ImportCreationDto) { return this.service.importX(body.url); }
+  importX(@Body() body: ImportCreationDto) {
+    return this.service.importX(body.url);
+  }
   @Delete(':id')
   @HttpCode(204)
-  delete(@Param() params: IdParamDto) { return this.service.delete(params.id); }
+  delete(@Param() params: IdParamDto) {
+    return this.service.delete(params.id);
+  }
 }
