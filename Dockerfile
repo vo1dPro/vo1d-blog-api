@@ -25,4 +25,4 @@ COPY --from=build --chown=node:node /app/dist ./dist
 COPY --from=build --chown=node:node /app/package.json ./package.json
 USER node
 EXPOSE 3000
-CMD ["node", "--use-system-ca", "dist/main.js"]
+CMD ["node", "--use-system-ca", "--use-env-proxy", "dist/main.js"]

@@ -17,6 +17,7 @@ import { GamesModule } from './games/games.module.js';
 import { PhotosModule } from './photos/photos.module.js';
 import { SkillsModule } from './skills/skills.module.js';
 import { SocialLinksModule } from './social-links/social-links.module.js';
+import { CreationsModule } from './creations/creations.module.js';
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { SocialLinksModule } from './social-links/social-links.module.js';
     PhotosModule,
     SkillsModule,
     SocialLinksModule,
+    CreationsModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: OriginGuard },

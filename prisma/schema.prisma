@@ -5,6 +5,22 @@ generator client {
   moduleFormat = "esm"
 }
 
+model CreationPost {
+  id          Int       @id @default(autoincrement())
+  platform    String    @db.VarChar(24)
+  externalId  String    @db.VarChar(100)
+  sourceUrl   String
+  publishedAt DateTime  @db.Timestamptz(3)
+  payload     Json
+  deletedAt   DateTime? @db.Timestamptz(3)
+  createdAt   DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime  @updatedAt @db.Timestamptz(3)
+
+  @@unique([platform, externalId])
+  @@index([deletedAt, publishedAt(sort: Desc), id(sort: Desc)])
+  @@map("creation_posts")
+}
+
 datasource db {
   provider = "postgresql"
 }

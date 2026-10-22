@@ -16,7 +16,7 @@ export class PublicCacheInterceptor implements NestInterceptor {
       !request.path.startsWith('/admin') &&
       !request.path.startsWith('/auth');
 
-    if (!isPublicGet || request.path === '/health' || /^\/games\/playing\/?$/.test(request.path)) {
+    if (!isPublicGet || request.path === '/health' || /^\/(?:games\/playing|creations)\/?$/.test(request.path)) {
       response.setHeader('Cache-Control', 'no-store');
       return next.handle();
     }

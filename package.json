@@ -15,9 +15,9 @@
     "maintenance:prune": "tsx scripts/maintenance-prune.ts",
     "verify:smoke": "tsx scripts/verify-smoke.ts",
     "build": "prisma generate && nest build",
-    "start": "node --env-file-if-exists=.env --use-system-ca dist/main.js",
-    "start:dev": "node --env-file-if-exists=.env --use-system-ca node_modules/@nestjs/cli/bin/nest.js start --watch",
-    "start:prod": "node --use-system-ca dist/main.js",
+    "start": "node --env-file-if-exists=.env --use-system-ca --use-env-proxy dist/main.js",
+    "start:dev": "node --env-file-if-exists=.env --use-system-ca --use-env-proxy node_modules/@nestjs/cli/bin/nest.js start --watch",
+    "start:prod": "node --use-system-ca --use-env-proxy dist/main.js",
     "lint": "eslint \"{src,scripts,test}/**/*.ts\" --max-warnings=0",
     "lint:fix": "pnpm lint --fix",
     "format": "prettier --write \"{src,scripts,test}/**/*.ts\" \"*.{ts,json,md,yml}\" \"docs/**/*.md\" && prisma format",
@@ -56,6 +56,7 @@
     "marked": "18.0.11",
     "multer": "2.3.0",
     "pg": "8.23.0",
+    "react-tweet": "3.3.0",
     "reflect-metadata": "0.2.2",
     "rxjs": "7.8.2",
     "sanitize-html": "2.17.7",
@@ -64,10 +65,9 @@
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
-    "@swc/core": "1.16.2",
-    "unplugin-swc": "1.5.11",
     "@nestjs/cli": "12.0.0",
     "@nestjs/testing": "12.0.1",
+    "@swc/core": "1.16.2",
     "@types/cookie-parser": "1.4.10",
     "@types/express": "5.0.6",
     "@types/multer": "2.2.0",
@@ -84,6 +84,7 @@
     "tsx": "4.23.13",
     "typescript": "6.0.3",
     "typescript-eslint": "8.69.0",
+    "unplugin-swc": "1.5.11",
     "vitest": "4.1.11"
   }
 }
