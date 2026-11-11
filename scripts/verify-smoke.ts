@@ -27,16 +27,7 @@ const steamVerification: Record<string, unknown> = {};
 try {
   const health = await fetch(`${endpoint}/health`);
   assert.equal(health.status, 200);
-  for (const resource of [
-    'articles',
-    'categories',
-    'tags',
-    'books',
-    'games',
-    'photos',
-    'skills',
-    'social-links',
-  ]) {
+  for (const resource of ['books', 'games', 'photos', 'skills', 'social-links']) {
     const response = await fetch(`${endpoint}/${resource}?pageSize=50`);
     assert.equal(response.status, 200);
     const page = z
@@ -44,15 +35,13 @@ try {
       .parse(await response.json());
     counts[resource] = page.total;
   }
-  const article = await fetch(`${endpoint}/articles/1`);
-  assert.equal(article.status, 200);
-  const detail = z
-    .object({ contentHtml: z.string(), cover: z.object({ url: z.string() }) })
-    .parse(await article.json());
-  assert.ok(detail.contentHtml.includes('<p>'));
-  assert.equal((await fetch(detail.cover.url)).status, 200);
+  const books = z
+    .object({ items: z.array(z.object({ cover: z.object({ url: z.string() }) })) })
+    .parse(await (await fetch(`${endpoint}/books?pageSize=1`)).json());
+  const cover = books.items[0]?.cover.url;
+  if (cover) assert.equal((await fetch(cover)).status, 200);
   assert.equal((await fetch(`${endpoint}/site-profile`)).status, 200);
-  assert.equal((await fetch(`${endpoint}/admin/articles`)).status, 401);
+  assert.equal((await fetch(`${endpoint}/admin/books`)).status, 401);
   adminId = (
     await prisma.adminUser.create({
       data: { email, passwordHash: await hash(password, { type: argon2id }) },
@@ -69,7 +58,7 @@ try {
   const me = await fetch(`${endpoint}/auth/me`, { headers: { Cookie: cookie } });
   assert.equal(me.status, 200);
   assert.equal(
-    (await fetch(`${endpoint}/admin/articles`, { headers: { Cookie: cookie } })).status,
+    (await fetch(`${endpoint}/admin/books`, { headers: { Cookie: cookie } })).status,
     200,
   );
   if (process.env.VERIFY_STEAM === 'true') {

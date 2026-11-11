@@ -2,12 +2,10 @@ import 'reflect-metadata';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import { describe, expect, it } from 'vitest';
-import { UpdateCategoryDto } from '../../categories/dto/update-category.dto.js';
 import { UpdateGameDto } from '../../games/dto/update-game.dto.js';
 import { UpdatePhotoDto } from '../../photos/dto/update-photo.dto.js';
 import { UpdateSkillDto } from '../../skills/dto/update-skill.dto.js';
 import { UpdateSocialLinkDto } from '../../social-links/dto/update-social-link.dto.js';
-import { UpdateTagDto } from '../../tags/dto/update-tag.dto.js';
 import { CreateBookDto } from './create-book.dto.js';
 import { UpdateBookDto } from './update-book.dto.js';
 
@@ -63,13 +61,6 @@ const cases: DtoCase[] = [
     ],
     nullable: ['capturedAt'],
   },
-  {
-    name: 'category',
-    type: UpdateCategoryDto,
-    required: ['key', 'label', 'sortOrder', 'isVisible'],
-    nullable: ['iconKey'],
-  },
-  { name: 'tag', type: UpdateTagDto, required: ['slug', 'name'], nullable: [] },
   {
     name: 'skill',
     type: UpdateSkillDto,

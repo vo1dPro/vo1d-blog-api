@@ -9,9 +9,6 @@ import { AuthModule } from './auth/auth.module.js';
 import { MediaModule } from './media/media.module.js';
 import { HealthModule } from './health/health.module.js';
 import { SiteProfileModule } from './site-profile/site-profile.module.js';
-import { ArticlesModule } from './articles/articles.module.js';
-import { CategoriesModule } from './categories/categories.module.js';
-import { TagsModule } from './tags/tags.module.js';
 import { BooksModule } from './books/books.module.js';
 import { GamesModule } from './games/games.module.js';
 import { PhotosModule } from './photos/photos.module.js';
@@ -27,9 +24,6 @@ import { CreationsModule } from './creations/creations.module.js';
     MediaModule,
     SiteProfileModule,
     HealthModule,
-    ArticlesModule,
-    CategoriesModule,
-    TagsModule,
     BooksModule,
     GamesModule,
     PhotosModule,

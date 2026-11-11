@@ -151,7 +151,7 @@ sudo nginx -t && sudo systemctl reload nginx
 ```bash
 curl -fsS https://api.vo1d.bot.cd/health
 curl -I https://vo1d.bot.cd
-curl -I https://admin.vo1d.bot.cd/articles/123
+curl -I https://admin.vo1d.bot.cd/books/123
 curl -I http://vo1d.bot.cd
 dc --profile app ps -a
 pnpm prisma:migrate:status

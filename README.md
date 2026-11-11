@@ -2,7 +2,7 @@
 
 独立 NestJS 博客后端，提供 `/` 公共内容与管理员 REST（Representational State Transfer，表述性状态转移）接口。前端仓库只用于显式导入，不属于运行时依赖；本项目不创建后台页面。
 
-接口直接使用 `/articles`、`/games`、`/auth/login`、`/admin/...`，不设 API 或版本前缀。适合独立后端域名；若未来同域同时部署前端，需要反向代理明确分流这些路径。现有本地配置使用 **3100** 端口，Swagger 为 [http://localhost:3100/docs](http://localhost:3100/docs)。Cookie 路径为 `/`，旧地址不再提供兼容路由，更新客户端基础地址后重新登录。
+接口直接使用 `/books`、`/games`、`/auth/login`、`/admin/...`，不设 API 或版本前缀。适合独立后端域名；若未来同域同时部署前端，需要反向代理明确分流这些路径。现有本地配置使用 **3100** 端口，Swagger 为 [http://localhost:3100/docs](http://localhost:3100/docs)。Cookie 路径为 `/`，旧地址不再提供兼容路由，更新客户端基础地址后重新登录。
 
 Steam 多账号自动同步已接入 games，同一 App ID 的时长按分钟合计，保留博客的手工评分、评论、封面与排序。配置和新管理员接口见 [Steam 接入文档](docs/steam-integration.md)；密钥只读环境变量，不进入 OpenAPI 或客户端。
 
@@ -59,7 +59,7 @@ pnpm start
 
 地址：
 
-- API：[健康检查](http://localhost:3100/health)，[文章列表](http://localhost:3100/articles)。
+- API：[健康检查](http://localhost:3100/health)，[书籍列表](http://localhost:3100/books)。
 - Swagger：[交互文档](http://localhost:3100/docs)，[OpenAPI JSON](http://localhost:3100/docs-json)。
 - MinIO 控制台：[本地控制台](http://localhost:9001)，凭据来自本地 `.env` 的 `MINIO_ROOT_USER / MINIO_ROOT_PASSWORD`。
 - 媒体：[本地 bucket](http://localhost:9000/vo1d-media) 下的对象 URL；不允许匿名写入。
@@ -133,8 +133,8 @@ pnpm build
 
 ```powershell
 curl.exe -i http://localhost:3100/health
-curl.exe -i "http://localhost:3100/articles?page=1&pageSize=6"
-curl.exe -i http://localhost:3100/admin/articles
+curl.exe -i "http://localhost:3100/books?page=1&pageSize=6"
+curl.exe -i http://localhost:3100/admin/books
 ```
 
 第三条未登录应返回 401。验证登录时从交互终端安全输入凭据，通过允许的 Origin 与 Cookie 容器请求，不把密码写入仓库或命令历史。`pnpm verify:smoke` 使用随机临时管理员通过真实 HTTP（Hypertext Transfer Protocol，超文本传输协议）验证登录/退出/公共端点，结束删除该临时用户并撤销会话，不输出密码。

@@ -46,12 +46,7 @@ describe('REST API with real PostgreSQL and S3-compatible storage', () => {
   let server: Server;
   let bucket: string;
   let adminId: number;
-  let categoryId: number;
-  let otherCategoryId: number;
-  let hiddenCategoryId: number;
-  let tagId: number;
   let coverId: number;
-  let articleId: number;
   let bookId: number;
   let gameId: number;
   let cookie: string;
@@ -120,78 +115,6 @@ describe('REST API with real PostgreSQL and S3-compatible storage', () => {
       },
     });
     coverId = cover.id;
-    const categories = await Promise.all([
-      prisma.category.create({ data: { key: 'technology', label: 'Technology', sortOrder: 0 } }),
-      prisma.category.create({ data: { key: 'life', label: 'Life', sortOrder: 1 } }),
-      prisma.category.create({ data: { key: 'secret', label: 'Secret', isVisible: false } }),
-    ]);
-    categoryId = z.number().parse(categories[0]?.id);
-    otherCategoryId = z.number().parse(categories[1]?.id);
-    hiddenCategoryId = z.number().parse(categories[2]?.id);
-    const tag = await prisma.tag.create({ data: { slug: 'typescript', name: 'TypeScript' } });
-    tagId = tag.id;
-    const primary = await prisma.article.create({
-      data: {
-        slug: 'typescript-guide',
-        title: 'TypeScript Guide',
-        summary: 'Strict types and validation',
-        bodyMarkdown: '# Introduction\n\nThis is `safe()` Markdown.',
-        categoryId,
-        coverMediaId: coverId,
-        status: 'PUBLISHED',
-        publishedAt: new Date('2024-01-01T00:00:00.000Z'),
-        readingTimeMinutes: 4,
-        tags: { create: [{ tagId }] },
-      },
-    });
-    articleId = primary.id;
-    await prisma.article.create({
-      data: {
-        slug: 'related-guide',
-        title: 'Related Guide',
-        summary: 'Shared tags and category',
-        bodyMarkdown: 'Related.',
-        categoryId,
-        coverMediaId: coverId,
-        status: 'PUBLISHED',
-        publishedAt: new Date('2024-02-01T00:00:00.000Z'),
-        readingTimeMinutes: 2,
-        tags: { create: [{ tagId }] },
-      },
-    });
-    await prisma.article.create({
-      data: {
-        slug: 'travel-notes',
-        title: 'Travel Notes',
-        summary: 'A quiet journey',
-        bodyMarkdown: 'Travel.',
-        categoryId: otherCategoryId,
-        coverMediaId: coverId,
-        status: 'PUBLISHED',
-        publishedAt: new Date('2024-03-01T00:00:00.000Z'),
-        readingTimeMinutes: 3,
-      },
-    });
-    for (const [slug, status, date, articleCategoryId] of [
-      ['draft-article', 'DRAFT', null, categoryId],
-      ['archived-article', 'ARCHIVED', new Date('2023-01-01Z'), categoryId],
-      ['future-article', 'PUBLISHED', new Date('2099-01-01Z'), categoryId],
-      ['hidden-category-article', 'PUBLISHED', new Date('2024-01-01Z'), hiddenCategoryId],
-    ] as const) {
-      await prisma.article.create({
-        data: {
-          slug,
-          title: slug,
-          summary: 'Should not leak',
-          bodyMarkdown: 'Private source',
-          categoryId: articleCategoryId,
-          coverMediaId: coverId,
-          status,
-          publishedAt: date,
-          readingTimeMinutes: 1,
-        },
-      });
-    }
     const book = await prisma.book.create({
       data: {
         title: 'Visible Book',
@@ -760,21 +683,6 @@ describe('REST API with real PostgreSQL and S3-compatible storage', () => {
   function remove(path: string): request.Test {
     return request(server).delete(`/${path}`).set('Origin', origin).set('Cookie', cookie);
   }
-  function articlePayload(overrides: Record<string, unknown> = {}): Record<string, unknown> {
-    return {
-      slug: 'new-article',
-      title: 'New Article',
-      summary: 'Summary',
-      bodyMarkdown: 'Markdown',
-      categoryId,
-      coverMediaId: coverId,
-      readingTimeMinutes: 1,
-      status: 'DRAFT',
-      tagIds: [],
-      ...overrides,
-    };
-  }
-
   it('reports application and database health without caching', async () => {
     const response = await get('health').expect(200);
     const health = z
@@ -795,13 +703,8 @@ describe('REST API with real PostgreSQL and S3-compatible storage', () => {
     }
   });
 
-  it('does not reset published status during a title-only edit and rejects null required fields', async () => {
-    await patch(`admin/articles/${articleId}`, { title: 'Title-only edit' }).expect(200);
-    expect((await prisma.article.findUniqueOrThrow({ where: { id: articleId } })).status).toBe(
-      'PUBLISHED',
-    );
-    await get(`articles/${articleId}`).expect(200);
-    await patch(`admin/articles/${articleId}`, { title: null }).expect(400);
+  it('rejects null required fields', async () => {
+    await patch(`admin/books/${bookId}`, { title: null }).expect(400);
     await patch('admin/site-profile', { displayName: null }).expect(400);
   });
 
@@ -931,9 +834,6 @@ describe('REST API with real PostgreSQL and S3-compatible storage', () => {
 
   it('protects every admin resource, including write and reorder routes', async () => {
     for (const resource of [
-      'articles',
-      'categories',
-      'tags',
       'books',
       'games',
       'photos',
@@ -944,16 +844,7 @@ describe('REST API with real PostgreSQL and S3-compatible storage', () => {
     ]) {
       await get(`admin/${resource}`).expect(401);
     }
-    for (const resource of [
-      'articles',
-      'categories',
-      'tags',
-      'books',
-      'games',
-      'photos',
-      'skills',
-      'social-links',
-    ]) {
+    for (const resource of ['books', 'games', 'photos', 'skills', 'social-links']) {
       await get(`admin/${resource}/1`).expect(401);
       await request(server).post(`/admin/${resource}`).set('Origin', origin).send({}).expect(401);
       await request(server)
@@ -990,7 +881,7 @@ describe('REST API with real PostgreSQL and S3-compatible storage', () => {
       .send({ email, password })
       .expect(403);
     const preflight = await request(server)
-      .options('/admin/articles')
+      .options('/admin/books')
       .set('Origin', 'https://admin.example.com')
       .set('Access-Control-Request-Method', 'POST')
       .expect(204);
@@ -1002,113 +893,16 @@ describe('REST API with real PostgreSQL and S3-compatible storage', () => {
     expect(response.headers['x-content-type-options']).toBe('nosniff');
     expect(response.headers['x-powered-by']).toBeUndefined();
     await post('admin/skills', { name: 'New', iconKey: 'new', unexpected: 'value' }).expect(400);
-    await post(
-      'admin/articles',
-      articlePayload({ bodyMarkdown: 'x'.repeat(1024 * 1024 + 1) }),
-    ).expect(413);
+    await patch(`admin/books/${bookId}`, { readingNotes: 'x'.repeat(1024 * 1024 + 1) }).expect(413);
   });
 
   it('publishes cacheable lists with ETags and supports conditional GET', async () => {
-    const response = await get('articles').expect(200);
+    const response = await get('books').expect(200);
     expect(response.headers['cache-control']).toContain('public');
     const etag = z.string().parse(response.headers.etag);
-    await get('articles').set('If-None-Match', etag).expect(304);
-    const admin = await get('admin/articles').set('Cookie', cookie).expect(200);
+    await get('books').set('If-None-Match', etag).expect(304);
+    const admin = await get('admin/books').set('Cookie', cookie).expect(200);
     expect(admin.headers['cache-control']).toContain('no-store');
-  });
-
-  it('never exposes drafts, archived, future or hidden-category articles through any public route', async () => {
-    const list = pageSchema.parse((await get('articles').expect(200)).body);
-    expect(list.total).toBe(3);
-    expect(list.items.map((item) => item.slug)).toEqual([
-      'travel-notes',
-      'related-guide',
-      'typescript-guide',
-    ]);
-    for (const slug of [
-      'draft-article',
-      'archived-article',
-      'future-article',
-      'hidden-category-article',
-    ]) {
-      const item = await prisma.article.findUniqueOrThrow({ where: { slug } });
-      await get(`articles/${slug}`).expect(404);
-      await get(`articles/${item.id}`).expect(404);
-      await get(`articles/${slug}/related`).expect(404);
-    }
-    expect(JSON.stringify(list)).not.toContain('bodyMarkdown');
-    expect(JSON.stringify(list)).not.toContain('contentHtml');
-  });
-
-  it('supports article pagination, category, tag and case-insensitive text filters', async () => {
-    const page = pageSchema.parse((await get('articles?page=2&pageSize=1').expect(200)).body);
-    expect(page).toMatchObject({ page: 2, pageSize: 1, total: 3, totalPages: 3 });
-    expect(page.items[0]?.slug).toBe('related-guide');
-    const category = pageSchema.parse((await get('articles?category=technology').expect(200)).body);
-    expect(category.total).toBe(2);
-    const tag = pageSchema.parse((await get('articles?tag=typescript').expect(200)).body);
-    expect(tag.total).toBe(2);
-    const search = pageSchema.parse((await get('articles?q=STRICT').expect(200)).body);
-    expect(search.items.map((item) => item.id)).toEqual([articleId]);
-    const empty = pageSchema.parse((await get('articles?category=missing').expect(200)).body);
-    expect(empty).toMatchObject({ items: [], total: 0, totalPages: 0 });
-    await get('articles?pageSize=51').expect(400);
-    await get('articles?page=0').expect(400);
-    await get('articles?pageSize=1.5').expect(400);
-    await get('articles?unknown=true').expect(400);
-  });
-
-  it('returns equivalent detail by slug and numeric id, with sanitized HTML and TOC only publicly', async () => {
-    const bySlug = await get('articles/typescript-guide').expect(200);
-    const byId = await get(`articles/${articleId}`).expect(200);
-    expect(bySlug.body).toEqual(byId.body);
-    const detail = z
-      .object({
-        contentHtml: z.string(),
-        toc: z.array(z.object({ id: z.string(), text: z.string(), level: z.number() })),
-        publishedAt: z.iso.datetime(),
-      })
-      .passthrough()
-      .parse(bySlug.body);
-    expect(detail.contentHtml).toContain('<code>safe()</code>');
-    expect(detail.toc).toEqual([{ id: 'introduction', text: 'Introduction', level: 1 }]);
-    expect(detail).not.toHaveProperty('bodyMarkdown');
-    const admin = await get(`admin/articles/${articleId}`).set('Cookie', cookie).expect(200);
-    expect(entitySchema.parse(admin.body).bodyMarkdown).toContain('# Introduction');
-    await get('articles/99999999999999999999999999999').expect(404);
-  });
-
-  it('ranks related matches before newer unrelated articles, and excludes the current article', async () => {
-    const related = pageSchema.parse(
-      (await get('articles/typescript-guide/related?limit=3').expect(200)).body,
-    );
-    expect(related.items.map((item) => item.slug)).toEqual(['related-guide', 'travel-notes']);
-    expect(related.items.map((item) => item.id)).not.toContain(articleId);
-    await get('articles/typescript-guide/related?limit=11').expect(400);
-  });
-
-  it('rejects duplicate slugs as 409 and requires publication dates', async () => {
-    const conflict = await post(
-      'admin/articles',
-      articlePayload({ slug: 'typescript-guide' }),
-    ).expect(409);
-    expect(JSON.stringify(conflict.body).toLowerCase()).toMatch(/unique|exist|conflict/);
-    await post('admin/articles', articlePayload({ status: 'PUBLISHED' })).expect(400);
-    await post('admin/articles', articlePayload({ slug: '123' })).expect(400);
-    await post('admin/articles', articlePayload({ categoryId: 999999 })).expect(404);
-  });
-
-  it('removes active scripts, handlers and unsafe schemes from public Markdown rendering', async () => {
-    await patch(`admin/articles/${articleId}`, {
-      bodyMarkdown:
-        '# Safe\n\n<script>bad()</script>\n\n<img src=x onerror="bad()">\n\n[Danger](javascript:bad%28%29)\n\n<iframe src=x></iframe>',
-    }).expect(200);
-    const detail = z
-      .object({ contentHtml: z.string() })
-      .parse((await get(`articles/${articleId}`).expect(200)).body);
-    expect(detail.contentHtml).not.toMatch(/<(script|iframe)\b/i);
-    expect(detail.contentHtml).not.toMatch(/<[^>]+\son\w+=/i);
-    expect(detail.contentHtml).not.toMatch(/(?:href|src)="javascript:/i);
   });
 
   it('exposes only visible resources, all with paginated envelopes and stable order', async () => {
@@ -1117,30 +911,13 @@ describe('REST API with real PostgreSQL and S3-compatible storage', () => {
     expect(pageSchema.parse((await get('books').expect(200)).body).total).toBe(0);
     expect(pageSchema.parse((await get('games').expect(200)).body).total).toBe(0);
     expect(pageSchema.parse((await get('photos').expect(200)).body).items).toEqual([]);
-    expect(pageSchema.parse((await get('categories').expect(200)).body).total).toBe(2);
     expect(pageSchema.parse((await get('social-links').expect(200)).body).total).toBe(1);
     const skills = pageSchema.parse((await get('skills').expect(200)).body);
     expect(skills.items.map((item) => item.iconKey)).toEqual(['postgresql', 'react']);
     expect(skills.items.every((item) => !('svg' in item))).toBe(true);
-    expect(pageSchema.parse((await get('tags').expect(200)).body).total).toBe(1);
     expect((await get('site-profile').expect(200)).body).toMatchObject({
       displayName: 'Test Author',
     });
-  });
-
-  it('does not leak tags belonging solely to hidden-category articles', async () => {
-    const hiddenArticle = await prisma.article.findUniqueOrThrow({
-      where: { slug: 'hidden-category-article' },
-    });
-    await prisma.tag.create({
-      data: {
-        name: 'Hidden Tag',
-        slug: 'hidden-tag',
-        articles: { create: [{ articleId: hiddenArticle.id }] },
-      },
-    });
-    const tags = pageSchema.parse((await get('tags').expect(200)).body);
-    expect(tags.items.map((item) => item.slug)).not.toContain('hidden-tag');
   });
 
   it('supports administrator create / get / update / delete for every content resource', async () => {
@@ -1161,17 +938,6 @@ describe('REST API with real PostgreSQL and S3-compatible storage', () => {
       },
     });
     const cases = [
-      { resource: 'articles', create: articlePayload(), update: { title: 'Updated Article' } },
-      {
-        resource: 'categories',
-        create: { key: 'new-category', label: 'New Category' },
-        update: { label: 'Updated Category' },
-      },
-      {
-        resource: 'tags',
-        create: { slug: 'new-tag', name: 'New Tag' },
-        update: { name: 'Updated Tag' },
-      },
       {
         resource: 'books',
         create: {
@@ -1336,12 +1102,11 @@ describe('REST API with real PostgreSQL and S3-compatible storage', () => {
     }
   });
 
-  it('cascades user session deletion and refuses referenced category/media removal', async () => {
-    await remove(`admin/categories/${categoryId}`).expect(409);
+  it('cascades user session deletion and refuses referenced media removal', async () => {
     await remove(`admin/media/${coverId}`).expect(409);
     await prisma.adminUser.delete({ where: { id: adminId } });
     expect(await prisma.adminSession.count()).toBe(0);
-    await get('admin/articles').set('Cookie', cookie).expect(401);
+    await get('admin/books').set('Cookie', cookie).expect(401);
   });
 
   it('validates multipart extension, declared MIME, magic bytes, missing files and size', async () => {
