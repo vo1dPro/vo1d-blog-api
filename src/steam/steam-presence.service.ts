@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { AppConfigService } from '../config/app-config.service.js';
 import { SteamClient, SteamUpstreamError } from './steam.client.js';
 
-export interface SteamPresence {
+interface SteamPresence {
   source: 'steam';
   state: 'playing' | 'idle' | 'unavailable' | 'unconfigured';
   appId: number | null;

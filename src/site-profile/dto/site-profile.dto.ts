@@ -1,7 +1,7 @@
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 import { IsInt, IsOptional, IsString, MaxLength, Min, MinLength } from 'class-validator';
 
-export class SiteProfileFieldsDto {
+class SiteProfileFieldsDto {
   @ApiProperty({ maxLength: 120 })
   @IsString()
   @MinLength(1)

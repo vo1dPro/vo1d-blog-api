@@ -1,7 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { PaginatedResponseDto } from '../common/dto/pagination.dto.js';
 
-export class SteamAccountPlaytimeDto {
+class SteamAccountPlaytimeDto {
   @ApiProperty() accountName!: string;
   @ApiProperty({ minimum: 0 }) playtimeMinutes!: number;
   @ApiProperty() stale!: boolean;

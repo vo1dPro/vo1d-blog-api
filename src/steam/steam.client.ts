@@ -29,14 +29,14 @@ const recentSchema = z.object({
       .optional(),
   }),
 });
-export type SteamErrorCode =
+type SteamErrorCode =
   'NETWORK' | 'RATE_LIMITED' | 'UNAUTHORIZED' | 'UPSTREAM' | 'INVALID_RESPONSE' | 'PRIVATE_LIBRARY';
 export class SteamUpstreamError extends Error {
   constructor(readonly code: SteamErrorCode) {
     super(`Steam synchronization failed: ${code}`);
   }
 }
-export interface SteamLibraryGame {
+interface SteamLibraryGame {
   appId: number;
   name: string;
   playtimeMinutes: number;

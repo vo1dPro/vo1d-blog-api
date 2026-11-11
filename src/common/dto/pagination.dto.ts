@@ -2,7 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsInt, ValidateIf, Max, Min } from 'class-validator';
 
-export const MAX_PAGE_SIZE = 50;
+const MAX_PAGE_SIZE = 50;
 
 export class PaginationQueryDto {
   @ApiPropertyOptional({ default: 1, minimum: 1 })
