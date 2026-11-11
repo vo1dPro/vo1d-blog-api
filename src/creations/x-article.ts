@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { StaleWhileRevalidateCache } from './upstream-cache.js';
 
 const articleSchema = z.object({
   id: z.string().regex(/^\d{10,25}$/),
@@ -9,7 +10,7 @@ const articleSchema = z.object({
   }) }).optional(),
 });
 
-export interface XArticle {
+interface XArticle {
   id: string;
   url: string;
   title: string;
@@ -38,18 +39,10 @@ export function parseXArticle(value: unknown, postId: string, articleId: string,
 
 /** Cache both successes and failures; concurrent readers share one upstream request. */
 export class XArticleResolver {
-  private readonly cache = new Map<string, { expires: number; value: Promise<XArticle | undefined> }>();
+  private readonly cache = new StaleWhileRevalidateCache<XArticle>(3_600_000, 60_000);
 
-  async resolve(postId: string, articleId: string, owner: string): Promise<XArticle | undefined> {
-    const key = `${owner}:${postId}:${articleId}`;
-    const cached = this.cache.get(key);
-    if (cached && cached.expires > Date.now()) return cached.value;
-    const entry = { expires: Date.now() + 60_000, value: this.fetch(postId, articleId, owner) };
-    this.cache.set(key, entry);
-    if (this.cache.size > 200) this.cache.delete(this.cache.keys().next().value!);
-    const article = await entry.value;
-    entry.expires = Date.now() + (article ? 3_600_000 : 60_000);
-    return article;
+  resolve(postId: string, articleId: string, owner: string): Promise<XArticle | undefined> {
+    return this.cache.get(`${owner}:${postId}:${articleId}`, () => this.fetch(postId, articleId, owner));
   }
 
   private async fetch(postId: string, articleId: string, owner: string) {

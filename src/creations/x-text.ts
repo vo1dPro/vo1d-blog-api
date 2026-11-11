@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { StaleWhileRevalidateCache } from './upstream-cache.js';
 
 const count = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).optional().catch(undefined);
 const tweetSchema = z.object({
@@ -22,22 +23,14 @@ export function parseXText(value: unknown, id: string, owner: string): string | 
 }
 
 export class XTextResolver {
-  private readonly cache = new Map<string, { expires: number; value: Promise<ReturnType<typeof parseXDetails>> }>();
+  private readonly cache = new StaleWhileRevalidateCache<NonNullable<ReturnType<typeof parseXDetails>>>(300_000, 60_000);
 
   async resolve(id: string, owner: string): Promise<string | undefined> {
     return (await this.resolveDetails(id, owner))?.text;
   }
 
-  async resolveDetails(id: string, owner: string) {
-    const key = `${owner}:${id}`;
-    const cached = this.cache.get(key);
-    if (cached && cached.expires > Date.now()) return cached.value;
-    const entry = { expires: Date.now() + 60_000, value: this.fetch(id, owner) };
-    this.cache.set(key, entry);
-    if (this.cache.size > 200) this.cache.delete(this.cache.keys().next().value!);
-    const text = await entry.value;
-    entry.expires = Date.now() + (text ? 300_000 : 60_000);
-    return text;
+  resolveDetails(id: string, owner: string) {
+    return this.cache.get(`${owner}:${id}`, () => this.fetch(id, owner));
   }
 
   private async fetch(id: string, owner: string) {
