@@ -1,7 +1,7 @@
 import type { PaginationQueryDto, PaginatedResponseDto } from '../common/dto/pagination.dto.js';
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import type { ReorderDto } from '../common/dto/reorder.dto.js';
-import { AppConfigService } from '../config/app-config.service.js';
+import { MediaService } from '../media/media.service.js';
 import { PrismaService } from '../database/prisma.service.js';
 import type { MediaAsset, Prisma } from '../generated/prisma/client.js';
 import { MediaKind } from '../generated/prisma/enums.js';
@@ -19,7 +19,7 @@ type GameWithCover = Prisma.GameGetPayload<{ include: { coverMedia: true } }>;
 export class GamesService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly config: AppConfigService,
+    private readonly media: MediaService,
     private readonly steamService: SteamService,
     private readonly steamPresence: SteamPresenceService,
   ) {}
@@ -257,21 +257,7 @@ export class GamesService {
   }
 
   private mapMedia(media: MediaAsset): GameMediaResponseDto {
-    const encodedKey = media.objectKey
-      .replace(/^\/+/, '')
-      .split('/')
-      .map((part) => encodeURIComponent(part))
-      .join('/');
-    return {
-      id: media.id,
-      url: `${this.config.mediaPublicBaseUrl}/${encodedKey}`,
-      mimeType: media.mimeType,
-      sizeBytes: media.sizeBytes,
-      width: media.width,
-      height: media.height,
-      altText: media.altText,
-      kind: media.kind,
-      createdAt: media.createdAt.toISOString(),
-    };
+    // Database-stored icons have no object-storage copy; share the media URL rules.
+    return this.media.toResponse(media);
   }
 }
