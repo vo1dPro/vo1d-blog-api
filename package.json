@@ -32,8 +32,6 @@
     "prisma:migrate:deploy": "prisma migrate deploy",
     "prisma:migrate:status": "prisma migrate status",
     "admin:create": "tsx scripts/admin-create.ts",
-    "import:frontend": "tsx scripts/import-frontend.ts",
-    "import:icons": "tsx scripts/import-icons.ts",
     "migrate:icons": "tsx scripts/migrate-database-icons.ts"
   },
   "dependencies": {
